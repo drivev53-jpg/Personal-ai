@@ -2,18 +2,23 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Fox Chat Pro · persistent + error fix</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>Fox Chat · universal (merged)</title>
     
+    <!-- Tailwind + Marked + Font Awesome + Highlight.js -->
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 
     <style>
         :root { --fox-glow: #f97316; }
-        body { margin: 0; background: #0a0a0b; color: white; overflow: hidden; font-family: 'Inter', sans-serif; }
+        /* base light mode (will be overridden by dark class) */
+        body { margin: 0; font-family: 'Inter', sans-serif; background: #f9fafb; color: #111827; overflow: hidden; }
+        .dark body { background: #0a0a0b; color: white; }
 
-        /* --- BACKGROUND IMAGE WITH BLUR & DARK LAYER --- */
+        /* --- BACKGROUND IMAGE WITH BLUR & DARK LAYER (only in dark mode) --- */
         .bg-glow {
             position: fixed;
             top: 0;
@@ -22,6 +27,10 @@
             height: 100%;
             z-index: -1;
             overflow: hidden;
+            display: none; /* hidden in light mode */
+        }
+        .dark .bg-glow {
+            display: block;
         }
         .bg-glow::before {
             content: '';
@@ -62,6 +71,7 @@
             100% { transform: translate(120%, 120%); } 
         }
 
+        /* liquid glass (dark mode version) */
         .liquid-glass {
             background: rgba(20, 20, 22, 0.4);
             backdrop-filter: blur(20px) saturate(180%);
@@ -69,13 +79,27 @@
             border: 1px solid rgba(255, 255, 255, 0.08);
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
         }
+        .dark .liquid-glass {
+            background: rgba(20, 20, 22, 0.4);
+            border-color: rgba(255,255,255,0.08);
+        }
+        /* light mode variant for sidebar etc */
+        .light-glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(0,0,0,0.05);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        }
+        .dark .light-glass { display: none; } /* not used in dark */
 
         #sidebar { transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); z-index: 100; }
         .sidebar-hidden { transform: translateX(-100%); opacity: 0; visibility: hidden; }
 
+        /* settings modal */
         #settings-modal { transition: all 0.3s ease-in-out; z-index: 200; }
         .modal-hide { opacity: 0; pointer-events: none; transform: scale(0.95); }
 
+        /* context menu */
         .context-menu {
             position: absolute;
             background: #1e1e24;
@@ -142,10 +166,31 @@
 
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: rgba(249, 115, 22, 0.4); border-radius: 10px; }
+
+        /* loading */
+        #loading { position: fixed; inset: 0; background: #0a0a0b; color: white; z-index: 9999; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+        .dark #loading { background: #0a0a0b; }
+
+        /* mobile sidebar */
+        .sidebar-overlay {
+            position: fixed; inset:0; background: rgba(0,0,0,0.5); z-index: 90; display: none;
+        }
+        .sidebar-overlay.open { display: block; }
+        @media (min-width: 768px) {
+            .sidebar-overlay { display: none !important; }
+        }
+
+        /* user message bubble in light mode */
+        .dark .message-user { background: rgba(249,115,22,0.2); color: white; }
+        .message-user { background: #e5e7eb; color: #1f2937; border-radius: 1.5rem 1.5rem 0 1.5rem; }
+        .message-ai { background: #f3f4f6; color: #1f2937; border-radius: 1.5rem 1.5rem 1.5rem 0; }
+        .dark .message-ai { background: #2d3748; color: #e5e7eb; }
     </style>
 </head>
-<body class="h-[100dvh] flex flex-col">
+<body class="h-[100dvh] flex flex-col dark">
+    <div id="loading">Loading Fox Chat...</div>
 
+    <!-- background orbs (only visible in dark) -->
     <div class="bg-glow">
         <div class="glow-orb" style="top: 10%; left: 10%;"></div>
         <div class="glow-orb" style="bottom: 10%; right: 10%; background: #ef4444;"></div>
@@ -161,7 +206,7 @@
             
             <label class="text-gray-400 text-xs block mb-1">Model</label>
             <select id="model-select" class="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm outline-none focus:border-orange-500 mb-6">
-                <option value="arcee-ai/trinity-large-preview:free" selected>Trinity Large (free)</option>
+                <option value="arcee-ai/trinity-large-preview:free">Trinity Large (free)</option>
                 <option value="google/gemini-2.0-flash-exp:free">Gemini Flash (free)</option>
                 <option value="deepseek/deepseek-r1:free">DeepSeek R1 (free)</option>
                 <option value="mistralai/mistral-7b-instruct:free">Mistral 7B (free)</option>
@@ -175,31 +220,54 @@
         </div>
     </div>
 
-    <div id="overlay" class="fixed inset-0 bg-black/60 z-[90] hidden backdrop-blur-sm" onclick="toggleSidebar()"></div>
+    <!-- System Prompt Modal -->
+    <div id="systemPromptModal" class="fixed inset-0 flex items-center justify-center p-4 hidden" style="z-index:250;">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeSystemPromptModal()"></div>
+        <div class="liquid-glass w-full max-w-md p-8 rounded-[2rem] relative z-10 border-orange-500/20">
+            <h3 class="text-xl font-black mb-4 text-orange-500">System prompt</h3>
+            <textarea id="systemPromptInput" rows="5" class="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm text-white outline-none focus:border-orange-500 mb-4" placeholder="You are a helpful assistant..."></textarea>
+            <div class="flex gap-2">
+                <button onclick="saveSystemPrompt()" class="flex-1 py-3 bg-orange-500 text-black font-bold rounded-xl">Save</button>
+                <button onclick="closeSystemPromptModal()" class="flex-1 py-3 bg-white/10 rounded-xl">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar(false)"></div>
 
     <div class="flex h-full w-full relative">
+        <!-- SIDEBAR (multi-chat) -->
         <aside id="sidebar" class="w-72 h-full liquid-glass absolute md:relative sidebar-hidden md:translate-x-0 md:opacity-100 md:visible flex flex-col p-6">
             <div class="flex items-center justify-between mb-8">
                 <div class="flex items-center gap-3">
                     <img src="https://t3.ftcdn.net/jpg/08/63/01/66/360_F_863016640_fdXeQ7Olm2XJv7BulETweOBaRlUg4lLL.jpg" class="w-8 h-8 rounded-lg">
                     <h2 class="text-orange-500 font-black tracking-tighter text-xl">FOX CHAT</h2>
                 </div>
-                <button onclick="toggleSidebar()" class="md:hidden text-gray-400"><i class="fa-solid fa-chevron-left"></i></button>
+                <button onclick="toggleSidebar(false)" class="md:hidden text-gray-400"><i class="fa-solid fa-chevron-left"></i></button>
             </div>
 
             <button onclick="newChat()" class="w-full py-3 px-4 bg-orange-500/10 border border-orange-500/20 rounded-2xl text-orange-500 font-bold text-sm mb-6 flex items-center justify-center gap-2">
                 <i class="fa-solid fa-plus"></i> New Chat
             </button>
 
-            <div class="flex-1 overflow-y-auto" id="history-list">
-                <div class="p-4 rounded-2xl bg-white/5 border border-white/5 text-[10px] text-gray-500 text-center uppercase tracking-widest">Conversations (auto-saved)</div>
-            </div>
+            <!-- Chat history list -->
+            <div class="flex-1 overflow-y-auto space-y-1" id="chat-list"></div>
 
             <div class="pt-6 border-t border-white/10 mt-auto space-y-2">
+                <button onclick="openSystemPromptModal()" class="w-full p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-orange-500/30 transition-all flex items-center gap-3">
+                    <i class="fa-regular fa-message text-orange-500"></i>
+                    <span class="text-xs font-bold uppercase tracking-widest">System Prompt</span>
+                </button>
                 <button onclick="toggleSettings()" class="w-full p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-orange-500/30 transition-all flex items-center gap-3">
                     <i class="fa-solid fa-key text-orange-500"></i>
                     <span class="text-xs font-bold uppercase tracking-widest">API & Model</span>
                 </button>
+                <div class="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5">
+                    <span class="text-xs font-bold uppercase tracking-widest text-gray-300">Dark mode</span>
+                    <button onclick="toggleDarkMode()" class="w-10 h-5 rounded-full bg-gray-600 relative transition-colors">
+                        <span class="absolute left-0.5 top-0.5 w-4 h-4 bg-orange-500 rounded-full shadow transition-transform dark:translate-x-5"></span>
+                    </button>
+                </div>
                 <a href="https://t.me/urrkalil" target="_blank" class="flex items-center gap-3 p-4 rounded-2xl bg-white/5 hover:bg-orange-500/10 border border-white/5 transition-all group">
                     <div class="w-8 h-8 rounded-full bg-sky-500/20 flex items-center justify-center"><i class="fa-brands fa-telegram text-sky-400 text-lg"></i></div>
                     <div class="text-[10px] font-bold text-gray-200">tg: urrkalil</div>
@@ -207,10 +275,11 @@
             </div>
         </aside>
 
+        <!-- MAIN CHAT AREA -->
         <main class="flex-1 flex flex-col h-full relative min-w-0">
             <header class="p-4 flex items-center justify-between z-50">
-                <button onclick="toggleSidebar()" class="p-3 bg-white/5 rounded-xl border border-white/10"><i class="fa-solid fa-bars-staggered text-orange-500"></i></button>
-                <div class="text-[10px] font-black text-gray-500 tracking-[0.2em] uppercase" id="header-model">Trinity · Large</div>
+                <button onclick="toggleSidebar(true)" class="p-3 bg-white/5 rounded-xl border border-white/10"><i class="fa-solid fa-bars-staggered text-orange-500"></i></button>
+                <div class="text-[10px] font-black text-gray-500 tracking-[0.2em] uppercase" id="header-model">Trinity Large</div>
                 <div class="w-10"></div>
             </header>
 
@@ -227,341 +296,428 @@
         </main>
     </div>
 
-    <!-- hidden context menu for user messages -->
+    <!-- context menu for user messages -->
     <div id="user-context-menu" class="context-menu hidden">
         <button id="copy-user-msg"><i class="fa-regular fa-copy"></i> Copy</button>
         <button id="edit-user-msg"><i class="fa-regular fa-pen-to-square"></i> Edit</button>
     </div>
 
     <script>
-        // ---------- PERSISTENT STATE ----------
-        let messages = [];
-        let apiKey = localStorage.getItem('FOX_KEY_STORAGE') || '';
-        let selectedModel = localStorage.getItem('FOX_MODEL_STORAGE') || 'arcee-ai/trinity-large-preview:free';
+        (function() {
+            // ---------- STATE (multi-chat) ----------
+            let chats = [];
+            let currentChatId = null;
+            let apiKey = localStorage.getItem('FOX_KEY_STORAGE') || '';
+            let selectedModel = localStorage.getItem('FOX_MODEL_STORAGE') || 'arcee-ai/trinity-large-preview:free';
+            let darkMode = localStorage.getItem('darkMode') !== 'false'; // default true
 
-        // DOM elements
-        const chatContainer = document.getElementById('chat-container');
-        const inputField = document.getElementById('chat-input');
-        const sendBtn = document.getElementById('btn-send');
-        const settingsModal = document.getElementById('settings-modal');
-        const apiKeyInput = document.getElementById('api-key-input');
-        const modelSelect = document.getElementById('model-select');
-        const contextMenu = document.getElementById('user-context-menu');
-        const headerModel = document.getElementById('header-model');
+            // DOM elements
+            const chatContainer = document.getElementById('chat-container');
+            const inputField = document.getElementById('chat-input');
+            const sendBtn = document.getElementById('btn-send');
+            const settingsModal = document.getElementById('settings-modal');
+            const apiKeyInput = document.getElementById('api-key-input');
+            const modelSelect = document.getElementById('model-select');
+            const contextMenu = document.getElementById('user-context-menu');
+            const headerModel = document.getElementById('header-model');
+            const chatListEl = document.getElementById('chat-list');
+            const systemModal = document.getElementById('systemPromptModal');
+            const systemInput = document.getElementById('systemPromptInput');
+            const loading = document.getElementById('loading');
+            const app = document.body; // app is body
 
-        // Initialize model select & header
-        modelSelect.value = selectedModel;
-        updateHeaderModel();
-
-        // Load saved messages
-        loadMessages();
-
-        function updateHeaderModel() {
-            let displayName = selectedModel.split('/').pop().replace(':free', '').replace(/-/g, ' ');
-            headerModel.textContent = displayName.slice(0, 20);
-        }
-
-        // ---------- PERSISTENCE ----------
-        function saveMessages() {
-            localStorage.setItem('FOX_CHAT_HISTORY', JSON.stringify(messages));
-        }
-
-        function loadMessages() {
-            const saved = localStorage.getItem('FOX_CHAT_HISTORY');
-            if (saved) {
-                try {
-                    messages = JSON.parse(saved);
-                } catch (e) { messages = []; }
-            } else {
-                messages = [];
+            // Load from localStorage
+            function loadChats() {
+                const saved = localStorage.getItem('fox_chats');
+                if (saved) {
+                    try {
+                        chats = JSON.parse(saved);
+                    } catch (e) { chats = []; }
+                }
+                if (!chats || !chats.length) {
+                    chats = [{ id: Date.now().toString(), name: 'New chat', messages: [], systemPrompt: '' }];
+                }
+                if (!currentChatId || !chats.find(c => c.id === currentChatId)) {
+                    currentChatId = chats[0].id;
+                }
             }
-            renderChat();
-        }
+            loadChats();
 
-        // ---------- SETTINGS ----------
-        function saveSettings() {
-            const newKey = apiKeyInput.value.trim();
-            if (newKey) {
-                apiKey = newKey;
-                localStorage.setItem('FOX_KEY_STORAGE', newKey);
-            }
-            const newModel = modelSelect.value;
-            selectedModel = newModel;
-            localStorage.setItem('FOX_MODEL_STORAGE', newModel);
-            updateHeaderModel();
-            alert('Settings saved!');
-            toggleSettings();
-        }
-
-        function toggleSettings() {
-            settingsModal.classList.toggle('modal-hide');
-            if (!settingsModal.classList.contains('modal-hide')) {
-                apiKeyInput.value = apiKey;
-                modelSelect.value = selectedModel;
-            }
-        }
-
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('sidebar-hidden');
-            document.getElementById('overlay').classList.toggle('hidden');
-        }
-
-        function newChat() {
-            if (confirm('Start a new chat? Current conversation will be cleared.')) {
-                messages = [];
-                saveMessages();
-                renderChat();
-            }
-        }
-
-        // ---------- RENDER ----------
-        function renderChat() {
-            chatContainer.innerHTML = '';
-            if (messages.length === 0) {
-                chatContainer.innerHTML = `
-                    <div class="h-full flex flex-col items-center justify-center text-center">
-                        <img src="https://t3.ftcdn.net/jpg/08/63/01/66/360_F_863016640_fdXeQ7Olm2XJv7BulETweOBaRlUg4lLL.jpg" class="w-24 h-24 rounded-[2.5rem] shadow-2xl mb-6 border border-white/10">
-                        <h2 class="text-4xl font-black mb-2 transition-all duration-700">Hello, Ahmed!</h2>
-                        <p class="text-gray-400 text-sm">Messages are saved automatically · Long-press to edit</p>
-                    </div>
-                `;
-                return;
-            }
-
-            messages.forEach((msg, idx) => {
-                const msgDiv = document.createElement('div');
-                msgDiv.className = `flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} mb-6`;
-                msgDiv.dataset.index = idx;
-
-                if (msg.role === 'user') {
-                    msgDiv.innerHTML = `
-                        <div class="liquid-glass px-6 py-3 rounded-[2rem] rounded-tr-none max-w-[85%] text-sm text-white border-orange-500/20 user-message" data-index="${idx}">${marked.parse(msg.content)}</div>
-                    `;
-                    const bubble = msgDiv.querySelector('.user-message');
-                    bubble.addEventListener('contextmenu', (e) => showContextMenu(e, idx, msg.content));
+            // apply dark mode
+            function applyDarkMode() {
+                if (darkMode) {
+                    document.documentElement.classList.add('dark');
                 } else {
-                    const isImg = msg.isImg || false;
-                    const contentHtml = isImg 
-                        ? `<img src="${msg.content}" class="rounded-3xl max-w-sm w-full liquid-glass p-2 shadow-2xl">`
-                        : `<div class="prose prose-invert prose-orange text-sm">${marked.parse(msg.content)}</div>`;
-                    msgDiv.innerHTML = `
-                        <div class="flex gap-4 w-full assistant-message">
-                            <img src="https://t3.ftcdn.net/jpg/08/63/01/66/360_F_863016640_fdXeQ7Olm2XJv7BulETweOBaRlUg4lLL.jpg" class="w-10 h-10 rounded-2xl border border-white/10 flex-shrink-0">
-                            <div class="flex-1 overflow-hidden">
-                                ${contentHtml}
-                                <div class="message-actions">
-                                    <button class="copy-ai" title="Copy text"><i class="fa-regular fa-copy"></i></button>
-                                    <button class="regenerate-ai" title="Regenerate"><i class="fa-solid fa-rotate-right"></i></button>
-                                    <button class="share-ai" title="Share"><i class="fa-regular fa-share-from-square"></i></button>
-                                </div>
-                            </div>
+                    document.documentElement.classList.remove('dark');
+                }
+                localStorage.setItem('darkMode', darkMode);
+            }
+            applyDarkMode();
+
+            // Save chats
+            function saveChats() {
+                localStorage.setItem('fox_chats', JSON.stringify(chats));
+            }
+
+            // Current chat helper
+            function currentChat() {
+                return chats.find(c => c.id === currentChatId) || chats[0];
+            }
+
+            // Update header model
+            function updateHeaderModel() {
+                let displayName = selectedModel.split('/').pop().replace(':free', '').replace(/-/g, ' ');
+                headerModel.textContent = displayName.slice(0, 20);
+            }
+            modelSelect.value = selectedModel;
+            updateHeaderModel();
+
+            // Render chat list
+            function renderChatList() {
+                if (!chatListEl) return;
+                chatListEl.innerHTML = '';
+                chats.forEach(chat => {
+                    const div = document.createElement('div');
+                    div.className = `flex items-center justify-between p-3 rounded-2xl cursor-pointer transition ${chat.id === currentChatId ? 'bg-orange-500/20 border border-orange-500/30' : 'bg-white/5 hover:bg-white/10'}`;
+                    div.innerHTML = `
+                        <div class="flex-1 truncate text-sm text-white" onclick="selectChat('${chat.id}')">${chat.name || 'Chat'}</div>
+                        <div class="flex gap-1">
+                            <button onclick="renameChat('${chat.id}')" class="p-1 text-gray-400 hover:text-orange-500"><i class="fa-regular fa-pen-to-square text-xs"></i></button>
+                            <button onclick="deleteChat('${chat.id}')" class="p-1 text-gray-400 hover:text-red-500"><i class="fa-regular fa-trash-can text-xs"></i></button>
                         </div>
                     `;
-                    const actions = msgDiv.querySelector('.message-actions');
-                    actions.querySelector('.copy-ai').addEventListener('click', () => copyText(msg.content, isImg));
-                    actions.querySelector('.regenerate-ai').addEventListener('click', () => regenerateMessage(idx));
-                    actions.querySelector('.share-ai').addEventListener('click', () => shareContent(msg.content, isImg));
-                }
-                chatContainer.appendChild(msgDiv);
-            });
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-
-        // ---------- CONTEXT MENU (user messages) ----------
-        function showContextMenu(e, idx, content) {
-            e.preventDefault();
-            contextMenu.classList.remove('hidden');
-            contextMenu.style.left = e.pageX + 'px';
-            contextMenu.style.top = e.pageY + 'px';
-
-            document.getElementById('copy-user-msg').onclick = () => {
-                copyText(content, false);
-                contextMenu.classList.add('hidden');
-            };
-            document.getElementById('edit-user-msg').onclick = () => {
-                editUserMessage(idx, content);
-                contextMenu.classList.add('hidden');
-            };
-            setTimeout(() => {
-                window.addEventListener('click', function hideMenu() {
-                    contextMenu.classList.add('hidden');
-                    window.removeEventListener('click', hideMenu);
-                }, { once: true });
-            }, 10);
-        }
-
-        function copyText(text, isImage) {
-            navigator.clipboard.writeText(text).then(() => {
-                alert(isImage ? 'Image URL copied!' : 'Message copied!');
-            });
-        }
-
-        function shareContent(content, isImg) {
-            if (navigator.share) {
-                navigator.share({
-                    title: 'Fox Chat',
-                    text: isImg ? 'Image URL: ' + content : content,
-                }).catch(() => {});
-            } else {
-                copyText(content, isImg);
-            }
-        }
-
-        function editUserMessage(idx, oldContent) {
-            const newContent = prompt('Edit your message:', oldContent);
-            if (newContent && newContent.trim() !== '') {
-                messages = messages.slice(0, idx + 1); // truncate after this message
-                messages[idx].content = newContent.trim();
-                saveMessages();
-                renderChat();
-                sendMessage(newContent.trim()); // re-send to AI
-            }
-        }
-
-        function regenerateMessage(aiMsgIndex) {
-            let userIdx = -1;
-            for (let i = aiMsgIndex - 1; i >= 0; i--) {
-                if (messages[i].role === 'user') {
-                    userIdx = i;
-                    break;
-                }
-            }
-            if (userIdx === -1) return;
-            messages = messages.slice(0, userIdx + 1);
-            saveMessages();
-            renderChat();
-            sendMessage(messages[userIdx].content);
-        }
-
-// ---------- SEND MESSAGE (with streaming & error handling) ----------
-        async function sendMessage(prompt) {
-            if (!prompt) return;
-
-            // Check API key for non-image requests
-            if (!apiKey && !/image|generate/i.test(prompt)) {
-                alert('Please set your OpenRouter API key in settings first.');
-                toggleSettings();
-                return;
-            }
-
-            // Add user message if not already present (avoid duplicates from edit)
-            const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
-            if (!lastMsg || lastMsg.role !== 'user' || lastMsg.content !== prompt) {
-                messages.push({ role: 'user', content: prompt, isImg: false });
-                saveMessages();
-                renderChat();
-            }
-
-            // Image generation
-            if (/image|generate/i.test(prompt)) {
-                const imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${Math.random()}&nologo=true`;
-                messages.push({ role: 'assistant', content: imgUrl, isImg: true });
-                saveMessages();
-                renderChat();
-                return;
-            }
-
-            // Prepare assistant placeholder
-            const assistantMsg = { role: 'assistant', content: '', isImg: false };
-            messages.push(assistantMsg);
-            saveMessages();
-            renderChat();
-
-            const lastDiv = chatContainer.lastElementChild;
-            const proseDiv = lastDiv?.querySelector('.prose');
-            if (!proseDiv) return;
-            proseDiv.classList.add('cursor-blink');
-
-            let fullText = '';
-            try {
-                const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${apiKey}`,
-                        'Content-Type': 'application/json',
-                        'HTTP-Referer': window.location.origin,
-                    },
-                    body: JSON.stringify({
-                        model: selectedModel,
-                        messages: [{ role: 'user', content: prompt }],
-                        stream: true
-                    })
+                    chatListEl.appendChild(div);
                 });
+            }
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`HTTP ${response.status}: ${errorText.slice(0, 100)}`);
+               // Render messages of current chat
+            function renderChat() {
+                const chat = currentChat();
+                const messages = chat.messages || [];
+                chatContainer.innerHTML = '';
+                if (messages.length === 0) {
+                    chatContainer.innerHTML = `
+                        <div class="h-full flex flex-col items-center justify-center text-center">
+                            <img src="https://t3.ftcdn.net/jpg/08/63/01/66/360_F_863016640_fdXeQ7Olm2XJv7BulETweOBaRlUg4lLL.jpg" class="w-24 h-24 rounded-[2.5rem] shadow-2xl mb-6 border border-white/10">
+                            <h2 class="text-4xl font-black mb-2 transition-all duration-700 text-white">Hello, Ahmed!</h2>
+                            <p class="text-gray-400 text-sm">Messages are saved · Long-press to edit</p>
+                        </div>
+                    `;
+                    return;
                 }
 
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
+                messages.forEach((msg, idx) => {
+                    const msgDiv = document.createElement('div');
+                    msgDiv.className = `flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} mb-6`;
+                    msgDiv.dataset.index = idx;
 
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
+                    if (msg.role === 'user') {
+                        msgDiv.innerHTML = `
+                            <div class="px-6 py-3 rounded-[2rem] rounded-tr-none max-w-[85%] text-sm message-user user-message" data-index="${idx}">${marked.parse(msg.content)}</div>
+                        `;
+                        const bubble = msgDiv.querySelector('.user-message');
+                        bubble.addEventListener('contextmenu', (e) => showContextMenu(e, idx, msg.content));
+                    } else {
+                        const isImg = msg.isImg || false;
+                        const contentHtml = isImg 
+                            ? `<img src="${msg.content}" class="rounded-3xl max-w-sm w-full liquid-glass p-2 shadow-2xl">`
+                            : `<div class="prose prose-invert prose-orange text-sm message-ai-content">${marked.parse(msg.content)}</div>`;
+                        msgDiv.innerHTML = `
+                            <div class="flex gap-4 w-full assistant-message">
+                                <img src="https://t3.ftcdn.net/jpg/08/63/01/66/360_F_863016640_fdXeQ7Olm2XJv7BulETweOBaRlUg4lLL.jpg" class="w-10 h-10 rounded-2xl border border-white/10 flex-shrink-0">
+                                <div class="flex-1 overflow-hidden">
+                                    ${contentHtml}
+                                    <div class="message-actions">
+                                        <button class="copy-ai" title="Copy text"><i class="fa-regular fa-copy"></i></button>
+                                        <button class="regenerate-ai" title="Regenerate"><i class="fa-solid fa-rotate-right"></i></button>
+                                        <button class="share-ai" title="Share"><i class="fa-regular fa-share-from-square"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        const actions = msgDiv.querySelector('.message-actions');
+                        actions.querySelector('.copy-ai').addEventListener('click', () => copyText(msg.content, isImg));
+                        actions.querySelector('.regenerate-ai').addEventListener('click', () => regenerateMessage(idx));
+                        actions.querySelector('.share-ai').addEventListener('click', () => shareContent(msg.content, isImg));
+                    }
+                    chatContainer.appendChild(msgDiv);
+                });
+                // Highlight code
+                document.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
 
-                    const chunk = decoder.decode(value);
-                    const lines = chunk.split('\n').filter(line => line.trim() !== '');
+            // Combined render
+            function renderAll() {
+                renderChatList();
+                renderChat();
+            }
 
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            const jsonStr = line.slice(6);
-                            if (jsonStr === '[DONE]') continue;
-                            try {
-                                const data = JSON.parse(jsonStr);
-                                const delta = data.choices[0]?.delta?.content || '';
-                                fullText += delta;
-                                assistantMsg.content = fullText;
-                                proseDiv.innerHTML = marked.parse(fullText);
-                                chatContainer.scrollTop = chatContainer.scrollHeight;
-                            } catch (e) {
-                                console.warn('JSON parse error', e, jsonStr);
+            // ---------- CHAT MANAGEMENT ----------
+            window.selectChat = (id) => {
+                currentChatId = id;
+                renderAll();
+                if (window.innerWidth < 768) toggleSidebar(false);
+            };
+            window.newChat = () => {
+                const id = Date.now().toString();
+                chats.push({ id, name: 'New chat', messages: [], systemPrompt: '' });
+                currentChatId = id;
+                saveChats();
+                renderAll();
+                toggleSidebar(false);
+            };
+            window.renameChat = (id) => {
+                const chat = chats.find(c => c.id === id);
+                const newName = prompt('Rename chat:', chat.name);
+                if (newName !== null) {
+                    chat.name = newName.trim() || 'Chat';
+                    saveChats();
+                    renderChatList();
+                }
+            };
+            window.deleteChat = (id) => {
+                if (chats.length === 1) {
+                    alert('Cannot delete the only chat. Create a new one first.');
+                    return;
+                }
+                if (confirm('Delete this chat?')) {
+                    chats = chats.filter(c => c.id !== id);
+                    if (currentChatId === id) currentChatId = chats[0].id;
+                    saveChats();
+                    renderAll();
+                }
+            };
+
+            // ---------- SYSTEM PROMPT ----------
+            window.openSystemPromptModal = () => {
+                systemInput.value = currentChat().systemPrompt || '';
+                systemModal.classList.remove('hidden');
+                toggleSidebar(false);
+            };
+            window.closeSystemPromptModal = () => systemModal.classList.add('hidden');
+            window.saveSystemPrompt = () => {
+                currentChat().systemPrompt = systemInput.value;
+                saveChats();
+                closeSystemPromptModal();
+            };
+
+            // ---------- SETTINGS ----------
+            window.saveSettings = () => {
+                const newKey = apiKeyInput.value.trim();
+                if (newKey) {
+                    apiKey = newKey;
+                    localStorage.setItem('FOX_KEY_STORAGE', newKey);
+                }
+                const newModel = modelSelect.value;
+                selectedModel = newModel;
+                localStorage.setItem('FOX_MODEL_STORAGE', newModel);
+                updateHeaderModel();
+                alert('Settings saved!');
+                toggleSettings();
+            };
+            window.toggleSettings = () => {
+                settingsModal.classList.toggle('modal-hide');
+                if (!settingsModal.classList.contains('modal-hide')) {
+                    apiKeyInput.value = apiKey;
+                    modelSelect.value = selectedModel;
+                }
+            };
+            window.toggleSidebar = (open) => {
+                const sidebar = document.getElementById('sidebar');
+                const overlay = document.getElementById('sidebarOverlay');
+                if (open) {
+                    sidebar.classList.remove('sidebar-hidden');
+                    overlay.classList.add('open');
+                } else {
+                    sidebar.classList.add('sidebar-hidden');
+                    overlay.classList.remove('open');
+                }
+            };
+
+            // ---------- DARK MODE ----------
+            window.toggleDarkMode = () => {
+                darkMode = !darkMode;
+                applyDarkMode();
+                // re-render to adjust colors? not needed because CSS handles
+            };
+
+            // ---------- CONTEXT MENU (same as before) ----------
+            function showContextMenu(e, idx, content) {
+                e.preventDefault();
+                contextMenu.classList.remove('hidden');
+                contextMenu.style.left = e.pageX + 'px';
+                contextMenu.style.top = e.pageY + 'px';
+                document.getElementById('copy-user-msg').onclick = () => {
+                    copyText(content, false);
+                    contextMenu.classList.add('hidden');
+                };
+                document.getElementById('edit-user-msg').onclick = () => {
+                    editUserMessage(idx, content);
+                    contextMenu.classList.add('hidden');
+                };
+                setTimeout(() => {
+                    window.addEventListener('click', function hideMenu() {
+                        contextMenu.classList.add('hidden');
+                        window.removeEventListener('click', hideMenu);
+                    }, { once: true });
+                }, 10);
+            }
+
+            function copyText(text, isImage) {
+                navigator.clipboard.writeText(text).then(() => {
+                    alert(isImage ? 'Image URL copied!' : 'Message copied!');
+                });
+            }
+            function shareContent(content, isImg) {
+                if (navigator.share) {
+                    navigator.share({ title: 'Fox Chat', text: isImg ? 'Image URL: ' + content : content }).catch(() => {});
+                } else copyText(content, isImg);
+            }
+
+            function editUserMessage(idx, oldContent) {
+                const newContent = prompt('Edit your message:', oldContent);
+                if (newContent && newContent.trim() !== '') {
+                    const chat = currentChat();
+                    chat.messages = chat.messages.slice(0, idx + 1);
+                    chat.messages[idx].content = newContent.trim();
+                    saveChats();
+                    renderChat();
+                    sendMessage(newContent.trim());
+                }
+            }
+
+            function regenerateMessage(aiMsgIndex) {
+                const chat = currentChat();
+                let userIdx = -1;
+                for (let i = aiMsgIndex - 1; i >= 0; i--) {
+                    if (chat.messages[i].role === 'user') {
+                        userIdx = i;
+                        break;
+                    }
+                }
+                if (userIdx === -1) return;
+                chat.messages = chat.messages.slice(0, userIdx + 1);
+                saveChats();
+                renderChat();
+                sendMessage(chat.messages[userIdx].content);
+            }
+
+            // ---------- SEND MESSAGE (streaming) ----------
+            async function sendMessage(prompt) {
+                if (!prompt) return;
+                if (!apiKey && !/image|generate/i.test(prompt)) {
+                    alert('Please set your OpenRouter API key in settings first.');
+                    toggleSettings();
+                    return;
+                }
+
+                const chat = currentChat();
+                const lastMsg = chat.messages.length > 0 ? chat.messages[chat.messages.length - 1] : null;
+                if (!lastMsg || lastMsg.role !== 'user' || lastMsg.content !== prompt) {
+                    chat.messages.push({ role: 'user', content: prompt, isImg: false });
+                    saveChats();
+                    renderChat();
+                }
+
+                if (/image|generate/i.test(prompt)) {
+                    const imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${Math.random()}&nologo=true`;
+                    chat.messages.push({ role: 'assistant', content: imgUrl, isImg: true });
+                    saveChats();
+                    renderChat();
+                    return;
+                }
+
+                // assistant placeholder
+                const assistantMsg = { role: 'assistant', content: '', isImg: false };
+                chat.messages.push(assistantMsg);
+                saveChats();
+                renderChat();
+
+                const lastDiv = chatContainer.lastElementChild;
+                const proseDiv = lastDiv?.querySelector('.message-ai-content');
+                if (!proseDiv) return;
+                proseDiv.classList.add('cursor-blink');
+
+                let fullText = '';
+                try {
+                    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${apiKey}`,
+                            'Content-Type': 'application/json',
+                            'HTTP-Referer': window.location.origin,
+                        },
+                        body: JSON.stringify({
+                            model: selectedModel,
+                            messages: chat.systemPrompt ? [{ role: 'system', content: chat.systemPrompt }, { role: 'user', content: prompt }] : [{ role: 'user', content: prompt }],
+                            stream: true
+                        })
+                    });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        const chunk = decoder.decode(value);
+                        const lines = chunk.split('\n').filter(l => l.trim() !== '');
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                const jsonStr = line.slice(6);
+                                if (jsonStr === '[DONE]') continue;
+                                try {
+                                    const data = JSON.parse(jsonStr);
+                                    const delta = data.choices[0]?.delta?.content || '';
+                                    fullText += delta;
+                                    assistantMsg.content = fullText;
+                                    proseDiv.innerHTML = marked.parse(fullText);
+                                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                                } catch (e) {}
                             }
                         }
                     }
+                } catch (error) {
+                    assistantMsg.content = `⚠️ Error: ${error.message}`;
+                    proseDiv.innerHTML = marked.parse(assistantMsg.content);
+                } finally {
+                    proseDiv.classList.remove('cursor-blink');
+                    saveChats();
+                    renderChat(); // final render for actions
                 }
-            } catch (error) {
-                console.error('Stream error:', error);
-                assistantMsg.content = `⚠️ Error: ${error.message}. Check API key, model, or network.`;
-                proseDiv.innerHTML = marked.parse(assistantMsg.content);
-            } finally {
-                proseDiv.classList.remove('cursor-blink');
-                saveMessages();
-                renderChat(); // ensure final state with action buttons
             }
-        }
-
-        // ---------- EVENT LISTENERS ----------
-        sendBtn.addEventListener('click', () => {
-            const prompt = inputField.value.trim();
-            if (prompt) {
-                inputField.value = '';
-                sendMessage(prompt);
-            }
-        });
-
-        inputField.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
+            
+            // ---------- EVENT LISTENERS ----------
+            sendBtn.addEventListener('click', () => {
                 const prompt = inputField.value.trim();
                 if (prompt) {
                     inputField.value = '';
                     sendMessage(prompt);
                 }
-            }
-            // backspace works normally
-        });
+            });
+            inputField.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    const prompt = inputField.value.trim();
+                    if (prompt) {
+                        inputField.value = '';
+                        sendMessage(prompt);
+                    }
+                }
+            });
+            chatContainer.addEventListener('scroll', () => contextMenu.classList.add('hidden'));
 
-        chatContainer.addEventListener('scroll', () => contextMenu.classList.add('hidden'));
+            // Loader hide
+            loading.style.display = 'none';
+            // Initial render
+            renderAll();
 
-        // Expose functions globally
-        window.toggleSettings = toggleSettings;
-        window.toggleSidebar = toggleSidebar;
-        window.saveSettings = saveSettings;
-        window.newChat = newChat;
-        window.copyText = copyText;
-        window.shareContent = shareContent;
-        window.regenerateMessage = regenerateMessage;
+            // expose functions globally for onclick
+            window.copyText = copyText;
+            window.shareContent = shareContent;
+            window.regenerateMessage = regenerateMessage;
+            window.editUserMessage = editUserMessage; // not directly used but ok
+        })();
     </script>
 </body>
 </html>
