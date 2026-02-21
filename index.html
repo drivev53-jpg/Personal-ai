@@ -390,7 +390,7 @@
                 });
             }
 
-               // Render messages of current chat
+   // Render messages of current chat
             function renderChat() {
                 const chat = currentChat();
                 const messages = chat.messages || [];
@@ -686,7 +686,6 @@
                     renderChat(); // final render for actions
                 }
             }
-            
             // ---------- EVENT LISTENERS ----------
             sendBtn.addEventListener('click', () => {
                 const prompt = inputField.value.trim();
