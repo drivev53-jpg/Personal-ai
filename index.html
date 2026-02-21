@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Fox Chat Pro · Trinity + edit/regenerate</title>
+    <title>Fox Chat Pro · persistent + error fix</title>
     
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -73,11 +73,9 @@
         #sidebar { transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); z-index: 100; }
         .sidebar-hidden { transform: translateX(-100%); opacity: 0; visibility: hidden; }
 
-        /* Settings Modal */
         #settings-modal { transition: all 0.3s ease-in-out; z-index: 200; }
         .modal-hide { opacity: 0; pointer-events: none; transform: scale(0.95); }
 
-        /* context menu (copy/edit) */
         .context-menu {
             position: absolute;
             background: #1e1e24;
@@ -153,20 +151,21 @@
         <div class="glow-orb" style="bottom: 10%; right: 10%; background: #ef4444;"></div>
     </div>
 
-    <!-- Settings Modal (now with model dropdown) -->
+    <!-- Settings Modal (API key + model) -->
     <div id="settings-modal" class="fixed inset-0 flex items-center justify-center p-4 modal-hide">
         <div class="absolute inset-0 bg-black/80 backdrop-blur-md" onclick="toggleSettings()"></div>
         <div class="liquid-glass w-full max-w-sm p-8 rounded-[2rem] relative z-10 border-orange-500/20">
             <h3 class="text-xl font-black mb-2 text-orange-500 uppercase">API Settings</h3>
-            <p class="text-gray-400 text-xs mb-4">Enter OpenRouter key & select model</p>
+            <p class="text-gray-400 text-xs mb-4">OpenRouter key & model (saved)</p>
             <input type="password" id="api-key-input" class="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm outline-none focus:border-orange-500 mb-4" placeholder="sk-or-v1-...">
             
             <label class="text-gray-400 text-xs block mb-1">Model</label>
             <select id="model-select" class="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm outline-none focus:border-orange-500 mb-6">
                 <option value="arcee-ai/trinity-large-preview:free" selected>Trinity Large (free)</option>
-                <option value="deepseek/deepseek-r1:free">DeepSeek R1 (free)</option>
                 <option value="google/gemini-2.0-flash-exp:free">Gemini Flash (free)</option>
+                <option value="deepseek/deepseek-r1:free">DeepSeek R1 (free)</option>
                 <option value="mistralai/mistral-7b-instruct:free">Mistral 7B (free)</option>
+                <option value="meta-llama/llama-3.2-3b-instruct:free">Llama 3.2 (free)</option>
             </select>
 
             <div class="flex gap-2">
@@ -193,7 +192,7 @@
             </button>
 
             <div class="flex-1 overflow-y-auto" id="history-list">
-                <div class="p-4 rounded-2xl bg-white/5 border border-white/5 text-[10px] text-gray-500 text-center uppercase tracking-widest">Conversations</div>
+                <div class="p-4 rounded-2xl bg-white/5 border border-white/5 text-[10px] text-gray-500 text-center uppercase tracking-widest">Conversations (auto-saved)</div>
             </div>
 
             <div class="pt-6 border-t border-white/10 mt-auto space-y-2">
@@ -211,13 +210,11 @@
         <main class="flex-1 flex flex-col h-full relative min-w-0">
             <header class="p-4 flex items-center justify-between z-50">
                 <button onclick="toggleSidebar()" class="p-3 bg-white/5 rounded-xl border border-white/10"><i class="fa-solid fa-bars-staggered text-orange-500"></i></button>
-                <div class="text-[10px] font-black text-gray-500 tracking-[0.2em] uppercase">Trinity · Large Preview</div>
+                <div class="text-[10px] font-black text-gray-500 tracking-[0.2em] uppercase" id="header-model">Trinity · Large</div>
                 <div class="w-10"></div>
             </header>
 
-            <div id="chat-container" class="flex-1 overflow-y-auto px-4 md:px-32 py-6 space-y-8 scroll-smooth">
-                <!-- messages will be injected by js -->
-            </div>
+            <div id="chat-container" class="flex-1 overflow-y-auto px-4 md:px-32 py-6 space-y-8 scroll-smooth"></div>
 
             <div class="p-4 md:px-32 pb-10">
                 <div class="max-w-4xl mx-auto liquid-glass p-2 rounded-[2rem] flex items-end gap-2">
@@ -237,12 +234,10 @@
     </div>
 
     <script>
-        // ---------- STATE ----------
-        let messages = [];               // array of { role, content, isImg, id }
+        // ---------- PERSISTENT STATE ----------
+        let messages = [];
         let apiKey = localStorage.getItem('FOX_KEY_STORAGE') || '';
         let selectedModel = localStorage.getItem('FOX_MODEL_STORAGE') || 'arcee-ai/trinity-large-preview:free';
-        let contextMenuTarget = null;     // stores the message index for edit/copy
-        let isGenerating = false;
 
         // DOM elements
         const chatContainer = document.getElementById('chat-container');
@@ -252,11 +247,38 @@
         const apiKeyInput = document.getElementById('api-key-input');
         const modelSelect = document.getElementById('model-select');
         const contextMenu = document.getElementById('user-context-menu');
+        const headerModel = document.getElementById('header-model');
 
-        // Initialize model select
+        // Initialize model select & header
         modelSelect.value = selectedModel;
+        updateHeaderModel();
 
-        // ---------- HELPER FUNCTIONS ----------
+        // Load saved messages
+        loadMessages();
+
+        function updateHeaderModel() {
+            let displayName = selectedModel.split('/').pop().replace(':free', '').replace(/-/g, ' ');
+            headerModel.textContent = displayName.slice(0, 20);
+        }
+
+        // ---------- PERSISTENCE ----------
+        function saveMessages() {
+            localStorage.setItem('FOX_CHAT_HISTORY', JSON.stringify(messages));
+        }
+
+        function loadMessages() {
+            const saved = localStorage.getItem('FOX_CHAT_HISTORY');
+            if (saved) {
+                try {
+                    messages = JSON.parse(saved);
+                } catch (e) { messages = []; }
+            } else {
+                messages = [];
+            }
+            renderChat();
+        }
+
+        // ---------- SETTINGS ----------
         function saveSettings() {
             const newKey = apiKeyInput.value.trim();
             if (newKey) {
@@ -266,6 +288,7 @@
             const newModel = modelSelect.value;
             selectedModel = newModel;
             localStorage.setItem('FOX_MODEL_STORAGE', newModel);
+            updateHeaderModel();
             alert('Settings saved!');
             toggleSettings();
         }
@@ -284,20 +307,22 @@
         }
 
         function newChat() {
-            messages = [];
-            renderChat();
+            if (confirm('Start a new chat? Current conversation will be cleared.')) {
+                messages = [];
+                saveMessages();
+                renderChat();
+            }
         }
 
-        // render all messages from messages array
+        // ---------- RENDER ----------
         function renderChat() {
             chatContainer.innerHTML = '';
             if (messages.length === 0) {
-                // show welcome screen
                 chatContainer.innerHTML = `
-                    <div id="welcome-screen" class="h-full flex flex-col items-center justify-center text-center">
+                    <div class="h-full flex flex-col items-center justify-center text-center">
                         <img src="https://t3.ftcdn.net/jpg/08/63/01/66/360_F_863016640_fdXeQ7Olm2XJv7BulETweOBaRlUg4lLL.jpg" class="w-24 h-24 rounded-[2.5rem] shadow-2xl mb-6 border border-white/10">
                         <h2 class="text-4xl font-black mb-2 transition-all duration-700">Hello, Ahmed!</h2>
-                        <p class="text-gray-400 text-sm">Long-press your messages to edit/copy · AI replies have actions</p>
+                        <p class="text-gray-400 text-sm">Messages are saved automatically · Long-press to edit</p>
                     </div>
                 `;
                 return;
@@ -312,11 +337,9 @@
                     msgDiv.innerHTML = `
                         <div class="liquid-glass px-6 py-3 rounded-[2rem] rounded-tr-none max-w-[85%] text-sm text-white border-orange-500/20 user-message" data-index="${idx}">${marked.parse(msg.content)}</div>
                     `;
-                    // attach contextmenu listener to the bubble
                     const bubble = msgDiv.querySelector('.user-message');
                     bubble.addEventListener('contextmenu', (e) => showContextMenu(e, idx, msg.content));
                 } else {
-                    // assistant message with action buttons
                     const isImg = msg.isImg || false;
                     const contentHtml = isImg 
                         ? `<img src="${msg.content}" class="rounded-3xl max-w-sm w-full liquid-glass p-2 shadow-2xl">`
@@ -334,7 +357,6 @@
                             </div>
                         </div>
                     `;
-                    // attach listeners for buttons
                     const actions = msgDiv.querySelector('.message-actions');
                     actions.querySelector('.copy-ai').addEventListener('click', () => copyText(msg.content, isImg));
                     actions.querySelector('.regenerate-ai').addEventListener('click', () => regenerateMessage(idx));
@@ -345,16 +367,13 @@
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
-        // ---------- CONTEXT MENU (copy/edit for user) ----------
+        // ---------- CONTEXT MENU (user messages) ----------
         function showContextMenu(e, idx, content) {
             e.preventDefault();
-            contextMenuTarget = idx;
-            // position menu near click
+            contextMenu.classList.remove('hidden');
             contextMenu.style.left = e.pageX + 'px';
             contextMenu.style.top = e.pageY + 'px';
-            contextMenu.classList.remove('hidden');
 
-            // one-time handlers
             document.getElementById('copy-user-msg').onclick = () => {
                 copyText(content, false);
                 contextMenu.classList.add('hidden');
@@ -363,7 +382,6 @@
                 editUserMessage(idx, content);
                 contextMenu.classList.add('hidden');
             };
-            // hide on click outside
             setTimeout(() => {
                 window.addEventListener('click', function hideMenu() {
                     contextMenu.classList.add('hidden');
@@ -373,11 +391,9 @@
         }
 
         function copyText(text, isImage) {
-            if (isImage) {
-                navigator.clipboard.writeText(text).then(() => alert('Image URL copied!'));
-            } else {
-                navigator.clipboard.writeText(text).then(() => alert('Message copied!'));
-            }
+            navigator.clipboard.writeText(text).then(() => {
+                alert(isImage ? 'Image URL copied!' : 'Message copied!');
+            });
         }
 
         function shareContent(content, isImg) {
@@ -394,18 +410,15 @@
         function editUserMessage(idx, oldContent) {
             const newContent = prompt('Edit your message:', oldContent);
             if (newContent && newContent.trim() !== '') {
-                // truncate messages after this user message
-                messages = messages.slice(0, idx + 1);
-                // replace with edited content
+                messages = messages.slice(0, idx + 1); // truncate after this message
                 messages[idx].content = newContent.trim();
+                saveMessages();
                 renderChat();
-                // automatically re-send from this point
-                sendMessage(newContent.trim());
+                sendMessage(newContent.trim()); // re-send to AI
             }
         }
 
         function regenerateMessage(aiMsgIndex) {
-            // find the last user message before this AI message
             let userIdx = -1;
             for (let i = aiMsgIndex - 1; i >= 0; i--) {
                 if (messages[i].role === 'user') {
@@ -414,88 +427,107 @@
                 }
             }
             if (userIdx === -1) return;
-            // truncate after that user message
             messages = messages.slice(0, userIdx + 1);
+            saveMessages();
             renderChat();
-            // resend the user message
             sendMessage(messages[userIdx].content);
         }
-// ---------- SEND MESSAGE (streaming) ----------
+
+// ---------- SEND MESSAGE (with streaming & error handling) ----------
         async function sendMessage(prompt) {
             if (!prompt) return;
+
+            // Check API key for non-image requests
             if (!apiKey && !/image|generate/i.test(prompt)) {
-                alert('Please set your API key in the sidebar first!');
+                alert('Please set your OpenRouter API key in settings first.');
                 toggleSettings();
                 return;
             }
 
-            // add user message if not already added (in case of edit, it's already in messages)
+            // Add user message if not already present (avoid duplicates from edit)
             const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
             if (!lastMsg || lastMsg.role !== 'user' || lastMsg.content !== prompt) {
-                messages.push({ role: 'user', content: prompt, isImg: false, id: Date.now() });
+                messages.push({ role: 'user', content: prompt, isImg: false });
+                saveMessages();
+                renderChat();
             }
-            renderChat();
 
-            // image generation path
+            // Image generation
             if (/image|generate/i.test(prompt)) {
                 const imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${Math.random()}&nologo=true`;
-                messages.push({ role: 'assistant', content: imgUrl, isImg: true, id: Date.now() });
+                messages.push({ role: 'assistant', content: imgUrl, isImg: true });
+                saveMessages();
                 renderChat();
                 return;
             }
 
-            // text generation with streaming
-            const assistantMsg = { role: 'assistant', content: '', isImg: false, id: Date.now() };
+            // Prepare assistant placeholder
+            const assistantMsg = { role: 'assistant', content: '', isImg: false };
             messages.push(assistantMsg);
-            renderChat();  // creates empty prose with cursor
+            saveMessages();
+            renderChat();
 
-            const lastAssistantDiv = chatContainer.lastElementChild;
-            const proseDiv = lastAssistantDiv.querySelector('.prose');
+            const lastDiv = chatContainer.lastElementChild;
+            const proseDiv = lastDiv?.querySelector('.prose');
             if (!proseDiv) return;
             proseDiv.classList.add('cursor-blink');
 
             let fullText = '';
             try {
-                const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
                     method: 'POST',
-                    headers: { 
-                        'Authorization': `Bearer ${apiKey}`, 
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
                         'Content-Type': 'application/json',
                         'HTTP-Referer': window.location.origin,
                     },
-                    body: JSON.stringify({ 
-                        model: selectedModel, 
-                        messages: [{ role: 'user', content: prompt }], 
-                        stream: true 
+                    body: JSON.stringify({
+                        model: selectedModel,
+                        messages: [{ role: 'user', content: prompt }],
+                        stream: true
                     })
                 });
-                const reader = res.body.getReader();
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText.slice(0, 100)}`);
+                }
+
+                const reader = response.body.getReader();
                 const decoder = new TextDecoder();
+
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
+
                     const chunk = decoder.decode(value);
-                    const lines = chunk.split('\n');
+                    const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
                     for (const line of lines) {
                         if (line.startsWith('data: ')) {
+                            const jsonStr = line.slice(6);
+                            if (jsonStr === '[DONE]') continue;
                             try {
-                                const data = JSON.parse(line.slice(6));
+                                const data = JSON.parse(jsonStr);
                                 const delta = data.choices[0]?.delta?.content || '';
                                 fullText += delta;
                                 assistantMsg.content = fullText;
                                 proseDiv.innerHTML = marked.parse(fullText);
                                 chatContainer.scrollTop = chatContainer.scrollHeight;
-                            } catch (e) { /* ignore parse errors */ }
+                            } catch (e) {
+                                console.warn('JSON parse error', e, jsonStr);
+                            }
                         }
                     }
                 }
-            } catch (e) {
-                assistantMsg.content = '⚠️ Error: check connection or API key.';
+            } catch (error) {
+                console.error('Stream error:', error);
+                assistantMsg.content = `⚠️ Error: ${error.message}. Check API key, model, or network.`;
                 proseDiv.innerHTML = marked.parse(assistantMsg.content);
             } finally {
                 proseDiv.classList.remove('cursor-blink');
-                // update messages array and re-render to get action buttons
-                renderChat();
+                saveMessages();
+                renderChat(); // ensure final state with action buttons
             }
         }
 
@@ -517,16 +549,12 @@
                     sendMessage(prompt);
                 }
             }
-            // backspace works normally, no extra interference
+            // backspace works normally
         });
 
-        // hide context menu on scroll
         chatContainer.addEventListener('scroll', () => contextMenu.classList.add('hidden'));
 
-        // initial render
-        renderChat();
-
-        // also expose functions globally for onclick handlers
+        // Expose functions globally
         window.toggleSettings = toggleSettings;
         window.toggleSidebar = toggleSidebar;
         window.saveSettings = saveSettings;
@@ -536,3 +564,4 @@
         window.regenerateMessage = regenerateMessage;
     </script>
 </body>
+</html>
