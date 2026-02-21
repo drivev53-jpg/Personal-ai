@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Fox Chat Pro · Trinity model</title>
+    <title>Fox Chat Pro · Trinity + edit/regenerate</title>
     
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -73,8 +73,71 @@
         #sidebar { transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); z-index: 100; }
         .sidebar-hidden { transform: translateX(-100%); opacity: 0; visibility: hidden; }
 
+        /* Settings Modal */
         #settings-modal { transition: all 0.3s ease-in-out; z-index: 200; }
         .modal-hide { opacity: 0; pointer-events: none; transform: scale(0.95); }
+
+        /* context menu (copy/edit) */
+        .context-menu {
+            position: absolute;
+            background: #1e1e24;
+            border: 1px solid #f9731633;
+            border-radius: 1rem;
+            padding: 0.5rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            z-index: 300;
+            display: flex;
+            gap: 0.5rem;
+            backdrop-filter: blur(10px);
+        }
+        .context-menu button {
+            background: transparent;
+            border: none;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            font-size: 0.8rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .context-menu button:hover {
+            background: #f9731622;
+            color: #f97316;
+        }
+
+        .message-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            margin-top: 0.25rem;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+        }
+        .assistant-message:hover .message-actions {
+            opacity: 1;
+        }
+        .message-actions button {
+            background: rgba(255,255,255,0.05);
+            border: none;
+            color: #ccc;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.8rem;
+        }
+        .message-actions button:hover {
+            background: #f97316;
+            color: black;
+        }
 
         .cursor-blink::after { content: '▋'; animation: blink 1s step-end infinite; color: var(--fox-glow); }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
@@ -90,14 +153,24 @@
         <div class="glow-orb" style="bottom: 10%; right: 10%; background: #ef4444;"></div>
     </div>
 
+    <!-- Settings Modal (now with model dropdown) -->
     <div id="settings-modal" class="fixed inset-0 flex items-center justify-center p-4 modal-hide">
         <div class="absolute inset-0 bg-black/80 backdrop-blur-md" onclick="toggleSettings()"></div>
         <div class="liquid-glass w-full max-w-sm p-8 rounded-[2rem] relative z-10 border-orange-500/20">
             <h3 class="text-xl font-black mb-2 text-orange-500 uppercase">API Settings</h3>
-            <p class="text-gray-400 text-xs mb-6">Enter your OpenRouter key. It will be saved locally.</p>
-            <input type="password" id="api-key-input" class="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm outline-none focus:border-orange-500 mb-6" placeholder="sk-or-v1-...">
+            <p class="text-gray-400 text-xs mb-4">Enter OpenRouter key & select model</p>
+            <input type="password" id="api-key-input" class="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm outline-none focus:border-orange-500 mb-4" placeholder="sk-or-v1-...">
+            
+            <label class="text-gray-400 text-xs block mb-1">Model</label>
+            <select id="model-select" class="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm outline-none focus:border-orange-500 mb-6">
+                <option value="arcee-ai/trinity-large-preview:free" selected>Trinity Large (free)</option>
+                <option value="deepseek/deepseek-r1:free">DeepSeek R1 (free)</option>
+                <option value="google/gemini-2.0-flash-exp:free">Gemini Flash (free)</option>
+                <option value="mistralai/mistral-7b-instruct:free">Mistral 7B (free)</option>
+            </select>
+
             <div class="flex gap-2">
-                <button onclick="saveApiKey()" class="flex-1 py-3 bg-orange-500 text-black font-bold rounded-xl hover:scale-105 transition-all">Save Key</button>
+                <button onclick="saveSettings()" class="flex-1 py-3 bg-orange-500 text-black font-bold rounded-xl hover:scale-105 transition-all">Save</button>
                 <button onclick="toggleSettings()" class="flex-1 py-3 bg-white/10 rounded-xl">Cancel</button>
             </div>
         </div>
@@ -115,7 +188,7 @@
                 <button onclick="toggleSidebar()" class="md:hidden text-gray-400"><i class="fa-solid fa-chevron-left"></i></button>
             </div>
 
-            <button onclick="window.location.reload()" class="w-full py-3 px-4 bg-orange-500/10 border border-orange-500/20 rounded-2xl text-orange-500 font-bold text-sm mb-6 flex items-center justify-center gap-2">
+            <button onclick="newChat()" class="w-full py-3 px-4 bg-orange-500/10 border border-orange-500/20 rounded-2xl text-orange-500 font-bold text-sm mb-6 flex items-center justify-center gap-2">
                 <i class="fa-solid fa-plus"></i> New Chat
             </button>
 
@@ -126,7 +199,7 @@
             <div class="pt-6 border-t border-white/10 mt-auto space-y-2">
                 <button onclick="toggleSettings()" class="w-full p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-orange-500/30 transition-all flex items-center gap-3">
                     <i class="fa-solid fa-key text-orange-500"></i>
-                    <span class="text-xs font-bold uppercase tracking-widest">API Key</span>
+                    <span class="text-xs font-bold uppercase tracking-widest">API & Model</span>
                 </button>
                 <a href="https://t.me/urrkalil" target="_blank" class="flex items-center gap-3 p-4 rounded-2xl bg-white/5 hover:bg-orange-500/10 border border-white/5 transition-all group">
                     <div class="w-8 h-8 rounded-full bg-sky-500/20 flex items-center justify-center"><i class="fa-brands fa-telegram text-sky-400 text-lg"></i></div>
@@ -143,11 +216,7 @@
             </header>
 
             <div id="chat-container" class="flex-1 overflow-y-auto px-4 md:px-32 py-6 space-y-8 scroll-smooth">
-                <div id="welcome-screen" class="h-full flex flex-col items-center justify-center text-center">
-                    <img src="https://t3.ftcdn.net/jpg/08/63/01/66/360_F_863016640_fdXeQ7Olm2XJv7BulETweOBaRlUg4lLL.jpg" class="w-24 h-24 rounded-[2.5rem] shadow-2xl mb-6 border border-white/10">
-                    <h2 class="text-4xl font-black mb-2 transition-all duration-700">Hello, Ahmed!</h2>
-                    <p class="text-gray-400 text-sm">Now with arcee-ai/trinity-large-preview:free</p>
-                </div>
+                <!-- messages will be injected by js -->
             </div>
 
             <div class="p-4 md:px-32 pb-10">
@@ -161,24 +230,51 @@
         </main>
     </div>
 
-    <script>
-        let apiKey = localStorage.getItem('FOX_KEY_STORAGE') || '';
+    <!-- hidden context menu for user messages -->
+    <div id="user-context-menu" class="context-menu hidden">
+        <button id="copy-user-msg"><i class="fa-regular fa-copy"></i> Copy</button>
+        <button id="edit-user-msg"><i class="fa-regular fa-pen-to-square"></i> Edit</button>
+    </div>
 
-        function toggleSettings() {
-            const modal = document.getElementById('settings-modal');
-            modal.classList.toggle('modal-hide');
-            if(!modal.classList.contains('modal-hide')) {
-                document.getElementById('api-key-input').value = apiKey;
+    <script>
+        // ---------- STATE ----------
+        let messages = [];               // array of { role, content, isImg, id }
+        let apiKey = localStorage.getItem('FOX_KEY_STORAGE') || '';
+        let selectedModel = localStorage.getItem('FOX_MODEL_STORAGE') || 'arcee-ai/trinity-large-preview:free';
+        let contextMenuTarget = null;     // stores the message index for edit/copy
+        let isGenerating = false;
+
+        // DOM elements
+        const chatContainer = document.getElementById('chat-container');
+        const inputField = document.getElementById('chat-input');
+        const sendBtn = document.getElementById('btn-send');
+        const settingsModal = document.getElementById('settings-modal');
+        const apiKeyInput = document.getElementById('api-key-input');
+        const modelSelect = document.getElementById('model-select');
+        const contextMenu = document.getElementById('user-context-menu');
+
+        // Initialize model select
+        modelSelect.value = selectedModel;
+
+        // ---------- HELPER FUNCTIONS ----------
+        function saveSettings() {
+            const newKey = apiKeyInput.value.trim();
+            if (newKey) {
+                apiKey = newKey;
+                localStorage.setItem('FOX_KEY_STORAGE', newKey);
             }
+            const newModel = modelSelect.value;
+            selectedModel = newModel;
+            localStorage.setItem('FOX_MODEL_STORAGE', newModel);
+            alert('Settings saved!');
+            toggleSettings();
         }
 
-        function saveApiKey() {
-            const val = document.getElementById('api-key-input').value.trim();
-            if(val) {
-                apiKey = val;
-                localStorage.setItem('FOX_KEY_STORAGE', val);
-                alert("API Key secured!");
-                toggleSettings();
+        function toggleSettings() {
+            settingsModal.classList.toggle('modal-hide');
+            if (!settingsModal.classList.contains('modal-hide')) {
+                apiKeyInput.value = apiKey;
+                modelSelect.value = selectedModel;
             }
         }
 
@@ -187,81 +283,256 @@
             document.getElementById('overlay').classList.toggle('hidden');
         }
 
-        function appendUI(role, content, isImg = false) {
-            document.getElementById('welcome-screen').classList.add('hidden');
-            const wrap = document.createElement('div');
-            wrap.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} mb-6`;
-            
-            if(role === 'user') {
-                wrap.innerHTML = `<div class="liquid-glass px-6 py-3 rounded-[2rem] rounded-tr-none max-w-[85%] text-sm text-white border-orange-500/20">${content}</div>`;
-            } else {
-                wrap.innerHTML = `
-                <div class="flex gap-4 w-full">
-                    <img src="https://t3.ftcdn.net/jpg/08/63/01/66/360_F_863016640_fdXeQ7Olm2XJv7BulETweOBaRlUg4lLL.jpg" class="w-10 h-10 rounded-2xl border border-white/10 flex-shrink-0">
-                    <div class="flex-1 overflow-hidden">
-                        ${isImg ? `<img src="${content}" class="rounded-3xl max-w-sm w-full liquid-glass p-2 shadow-2xl">` : `<div class="prose prose-invert prose-orange text-sm cursor-blink">${marked.parse(content)}</div>`}
-                    </div>
-                </div>`;
-            }
-            const cont = document.getElementById('chat-container');
-            cont.appendChild(wrap);
-            cont.scrollTop = cont.scrollHeight;
-            return wrap;
+        function newChat() {
+            messages = [];
+            renderChat();
         }
 
-        async function handleSend() {
-            const input = document.getElementById('chat-input');
-            const prompt = input.value.trim();
-            if(!prompt) return;
+        // render all messages from messages array
+        function renderChat() {
+            chatContainer.innerHTML = '';
+            if (messages.length === 0) {
+                // show welcome screen
+                chatContainer.innerHTML = `
+                    <div id="welcome-screen" class="h-full flex flex-col items-center justify-center text-center">
+                        <img src="https://t3.ftcdn.net/jpg/08/63/01/66/360_F_863016640_fdXeQ7Olm2XJv7BulETweOBaRlUg4lLL.jpg" class="w-24 h-24 rounded-[2.5rem] shadow-2xl mb-6 border border-white/10">
+                        <h2 class="text-4xl font-black mb-2 transition-all duration-700">Hello, Ahmed!</h2>
+                        <p class="text-gray-400 text-sm">Long-press your messages to edit/copy · AI replies have actions</p>
+                    </div>
+                `;
+                return;
+            }
 
-            if(!apiKey && !/image|generate/i.test(prompt)) {
-                alert("Please set your API key in the sidebar first!");
+            messages.forEach((msg, idx) => {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = `flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} mb-6`;
+                msgDiv.dataset.index = idx;
+
+                if (msg.role === 'user') {
+                    msgDiv.innerHTML = `
+                        <div class="liquid-glass px-6 py-3 rounded-[2rem] rounded-tr-none max-w-[85%] text-sm text-white border-orange-500/20 user-message" data-index="${idx}">${marked.parse(msg.content)}</div>
+                    `;
+                    // attach contextmenu listener to the bubble
+                    const bubble = msgDiv.querySelector('.user-message');
+                    bubble.addEventListener('contextmenu', (e) => showContextMenu(e, idx, msg.content));
+                } else {
+                    // assistant message with action buttons
+                    const isImg = msg.isImg || false;
+                    const contentHtml = isImg 
+                        ? `<img src="${msg.content}" class="rounded-3xl max-w-sm w-full liquid-glass p-2 shadow-2xl">`
+                        : `<div class="prose prose-invert prose-orange text-sm">${marked.parse(msg.content)}</div>`;
+                    msgDiv.innerHTML = `
+                        <div class="flex gap-4 w-full assistant-message">
+                            <img src="https://t3.ftcdn.net/jpg/08/63/01/66/360_F_863016640_fdXeQ7Olm2XJv7BulETweOBaRlUg4lLL.jpg" class="w-10 h-10 rounded-2xl border border-white/10 flex-shrink-0">
+                            <div class="flex-1 overflow-hidden">
+                                ${contentHtml}
+                                <div class="message-actions">
+                                    <button class="copy-ai" title="Copy text"><i class="fa-regular fa-copy"></i></button>
+                                    <button class="regenerate-ai" title="Regenerate"><i class="fa-solid fa-rotate-right"></i></button>
+                                    <button class="share-ai" title="Share"><i class="fa-regular fa-share-from-square"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    // attach listeners for buttons
+                    const actions = msgDiv.querySelector('.message-actions');
+                    actions.querySelector('.copy-ai').addEventListener('click', () => copyText(msg.content, isImg));
+                    actions.querySelector('.regenerate-ai').addEventListener('click', () => regenerateMessage(idx));
+                    actions.querySelector('.share-ai').addEventListener('click', () => shareContent(msg.content, isImg));
+                }
+                chatContainer.appendChild(msgDiv);
+            });
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // ---------- CONTEXT MENU (copy/edit for user) ----------
+        function showContextMenu(e, idx, content) {
+            e.preventDefault();
+            contextMenuTarget = idx;
+            // position menu near click
+            contextMenu.style.left = e.pageX + 'px';
+            contextMenu.style.top = e.pageY + 'px';
+            contextMenu.classList.remove('hidden');
+
+            // one-time handlers
+            document.getElementById('copy-user-msg').onclick = () => {
+                copyText(content, false);
+                contextMenu.classList.add('hidden');
+            };
+            document.getElementById('edit-user-msg').onclick = () => {
+                editUserMessage(idx, content);
+                contextMenu.classList.add('hidden');
+            };
+            // hide on click outside
+            setTimeout(() => {
+                window.addEventListener('click', function hideMenu() {
+                    contextMenu.classList.add('hidden');
+                    window.removeEventListener('click', hideMenu);
+                }, { once: true });
+            }, 10);
+        }
+
+        function copyText(text, isImage) {
+            if (isImage) {
+                navigator.clipboard.writeText(text).then(() => alert('Image URL copied!'));
+            } else {
+                navigator.clipboard.writeText(text).then(() => alert('Message copied!'));
+            }
+        }
+
+        function shareContent(content, isImg) {
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Fox Chat',
+                    text: isImg ? 'Image URL: ' + content : content,
+                }).catch(() => {});
+            } else {
+                copyText(content, isImg);
+            }
+        }
+
+        function editUserMessage(idx, oldContent) {
+            const newContent = prompt('Edit your message:', oldContent);
+            if (newContent && newContent.trim() !== '') {
+                // truncate messages after this user message
+                messages = messages.slice(0, idx + 1);
+                // replace with edited content
+                messages[idx].content = newContent.trim();
+                renderChat();
+                // automatically re-send from this point
+                sendMessage(newContent.trim());
+            }
+        }
+
+        function regenerateMessage(aiMsgIndex) {
+            // find the last user message before this AI message
+            let userIdx = -1;
+            for (let i = aiMsgIndex - 1; i >= 0; i--) {
+                if (messages[i].role === 'user') {
+                    userIdx = i;
+                    break;
+                }
+            }
+            if (userIdx === -1) return;
+            // truncate after that user message
+            messages = messages.slice(0, userIdx + 1);
+            renderChat();
+            // resend the user message
+            sendMessage(messages[userIdx].content);
+        }
+// ---------- SEND MESSAGE (streaming) ----------
+        async function sendMessage(prompt) {
+            if (!prompt) return;
+            if (!apiKey && !/image|generate/i.test(prompt)) {
+                alert('Please set your API key in the sidebar first!');
                 toggleSettings();
                 return;
             }
 
-            appendUI('user', prompt);
-            input.value = '';
+            // add user message if not already added (in case of edit, it's already in messages)
+            const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
+            if (!lastMsg || lastMsg.role !== 'user' || lastMsg.content !== prompt) {
+                messages.push({ role: 'user', content: prompt, isImg: false, id: Date.now() });
+            }
+            renderChat();
 
-            if(/image|generate/i.test(prompt)) {
+            // image generation path
+            if (/image|generate/i.test(prompt)) {
                 const imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${Math.random()}&nologo=true`;
-                appendUI('assistant', imgUrl, true);
-            } else {
-                const wrap = appendUI('assistant', '...');
-                const prose = wrap.querySelector('.prose');
-                let fullText = "";
-                try {
-                    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-                        // 🔁 Model changed to arcee-ai/trinity-large-preview:free as requested
-                        body: JSON.stringify({ model: "arcee-ai/trinity-large-preview:free", messages: [{role: "user", content: prompt}], stream: true })
-                    });
-                    const reader = res.body.getReader();
-                    const decoder = new TextDecoder();
-                    while (true) {
-                        const {done, value} = await reader.read();
-                        if(done) break;
-                        const chunk = decoder.decode(value);
-                        const lines = chunk.split('\n');
-                        for(const line of lines) {
-                            if(line.startsWith('data: ')) {
-                                try {
-                                    const data = JSON.parse(line.slice(6));
-                                    fullText += data.choices[0]?.delta?.content || '';
-                                    prose.innerHTML = marked.parse(fullText);
-                                    document.getElementById('chat-container').scrollTop = document.getElementById('chat-container').scrollHeight;
-                                } catch(e){}
-                            }
+                messages.push({ role: 'assistant', content: imgUrl, isImg: true, id: Date.now() });
+                renderChat();
+                return;
+            }
+
+            // text generation with streaming
+            const assistantMsg = { role: 'assistant', content: '', isImg: false, id: Date.now() };
+            messages.push(assistantMsg);
+            renderChat();  // creates empty prose with cursor
+
+            const lastAssistantDiv = chatContainer.lastElementChild;
+            const proseDiv = lastAssistantDiv.querySelector('.prose');
+            if (!proseDiv) return;
+            proseDiv.classList.add('cursor-blink');
+
+            let fullText = '';
+            try {
+                const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': `Bearer ${apiKey}`, 
+                        'Content-Type': 'application/json',
+                        'HTTP-Referer': window.location.origin,
+                    },
+                    body: JSON.stringify({ 
+                        model: selectedModel, 
+                        messages: [{ role: 'user', content: prompt }], 
+                        stream: true 
+                    })
+                });
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                const delta = data.choices[0]?.delta?.content || '';
+                                fullText += delta;
+                                assistantMsg.content = fullText;
+                                proseDiv.innerHTML = marked.parse(fullText);
+                                chatContainer.scrollTop = chatContainer.scrollHeight;
+                            } catch (e) { /* ignore parse errors */ }
                         }
                     }
-                } catch (e) { prose.innerHTML = "Check connection or API key."; }
-                finally { prose.classList.remove('cursor-blink'); }
+                }
+            } catch (e) {
+                assistantMsg.content = '⚠️ Error: check connection or API key.';
+                proseDiv.innerHTML = marked.parse(assistantMsg.content);
+            } finally {
+                proseDiv.classList.remove('cursor-blink');
+                // update messages array and re-render to get action buttons
+                renderChat();
             }
         }
 
-        document.getElementById('btn-send').onclick = handleSend;
-        document.getElementById('chat-input').onkeydown = (e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend());
+        // ---------- EVENT LISTENERS ----------
+        sendBtn.addEventListener('click', () => {
+            const prompt = inputField.value.trim();
+            if (prompt) {
+                inputField.value = '';
+                sendMessage(prompt);
+            }
+        });
+
+        inputField.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                const prompt = inputField.value.trim();
+                if (prompt) {
+                    inputField.value = '';
+                    sendMessage(prompt);
+                }
+            }
+            // backspace works normally, no extra interference
+        });
+
+        // hide context menu on scroll
+        chatContainer.addEventListener('scroll', () => contextMenu.classList.add('hidden'));
+
+        // initial render
+        renderChat();
+
+        // also expose functions globally for onclick handlers
+        window.toggleSettings = toggleSettings;
+        window.toggleSidebar = toggleSidebar;
+        window.saveSettings = saveSettings;
+        window.newChat = newChat;
+        window.copyText = copyText;
+        window.shareContent = shareContent;
+        window.regenerateMessage = regenerateMessage;
     </script>
 </body>
-</html>
