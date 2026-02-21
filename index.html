@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Fox Chat Pro · blurred bg</title>
+    <title>Fox Chat Pro · Trinity model</title>
     
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -13,7 +13,7 @@
         :root { --fox-glow: #f97316; }
         body { margin: 0; background: #0a0a0b; color: white; overflow: hidden; font-family: 'Inter', sans-serif; }
 
-        /* --- BACKGROUND IMAGE WITH BLUR & DARK LAYER (no blur on orbs) --- */
+        /* --- BACKGROUND IMAGE WITH BLUR & DARK LAYER --- */
         .bg-glow {
             position: fixed;
             top: 0;
@@ -23,7 +23,6 @@
             z-index: -1;
             overflow: hidden;
         }
-        /* blurred image layer */
         .bg-glow::before {
             content: '';
             position: absolute;
@@ -37,7 +36,6 @@
             filter: blur(12px);
             z-index: 1;
         }
-        /* dark overlay for readability */
         .bg-glow::after {
             content: '';
             position: absolute;
@@ -45,17 +43,16 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.65);  /* deep dark overlay, text stays crisp */
+            background: rgba(0, 0, 0, 0.65);
             z-index: 2;
         }
-        /* glowing orbs – above the dark overlay, sharp */
         .glow-orb {
             position: absolute;
             width: 400px;
             height: 400px;
             border-radius: 50%;
             background: var(--fox-glow);
-            opacity: 0.1;  /* slightly more visible on dark bg */
+            opacity: 0.1;
             filter: blur(100px);
             animation: move 25s infinite alternate ease-in-out;
             z-index: 3;
@@ -65,7 +62,6 @@
             100% { transform: translate(120%, 120%); } 
         }
 
-        /* --- LIQUID GLASS UI (same, but with extra contrast) --- */
         .liquid-glass {
             background: rgba(20, 20, 22, 0.4);
             backdrop-filter: blur(20px) saturate(180%);
@@ -77,7 +73,6 @@
         #sidebar { transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); z-index: 100; }
         .sidebar-hidden { transform: translateX(-100%); opacity: 0; visibility: hidden; }
 
-        /* Settings Modal */
         #settings-modal { transition: all 0.3s ease-in-out; z-index: 200; }
         .modal-hide { opacity: 0; pointer-events: none; transform: scale(0.95); }
 
@@ -90,7 +85,6 @@
 </head>
 <body class="h-[100dvh] flex flex-col">
 
-    <!-- Background container: blurred image + dark overlay + sharp orbs -->
     <div class="bg-glow">
         <div class="glow-orb" style="top: 10%; left: 10%;"></div>
         <div class="glow-orb" style="bottom: 10%; right: 10%; background: #ef4444;"></div>
@@ -100,7 +94,7 @@
         <div class="absolute inset-0 bg-black/80 backdrop-blur-md" onclick="toggleSettings()"></div>
         <div class="liquid-glass w-full max-w-sm p-8 rounded-[2rem] relative z-10 border-orange-500/20">
             <h3 class="text-xl font-black mb-2 text-orange-500 uppercase">API Settings</h3>
-            <p class="text-gray-400 text-xs mb-6">Enter your OpenRouter key. It will be saved locally on your device.</p>
+            <p class="text-gray-400 text-xs mb-6">Enter your OpenRouter key. It will be saved locally.</p>
             <input type="password" id="api-key-input" class="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm outline-none focus:border-orange-500 mb-6" placeholder="sk-or-v1-...">
             <div class="flex gap-2">
                 <button onclick="saveApiKey()" class="flex-1 py-3 bg-orange-500 text-black font-bold rounded-xl hover:scale-105 transition-all">Save Key</button>
@@ -144,7 +138,7 @@
         <main class="flex-1 flex flex-col h-full relative min-w-0">
             <header class="p-4 flex items-center justify-between z-50">
                 <button onclick="toggleSidebar()" class="p-3 bg-white/5 rounded-xl border border-white/10"><i class="fa-solid fa-bars-staggered text-orange-500"></i></button>
-                <div class="text-[10px] font-black text-gray-500 tracking-[0.2em] uppercase">Liquid Glass Pro</div>
+                <div class="text-[10px] font-black text-gray-500 tracking-[0.2em] uppercase">Trinity · Large Preview</div>
                 <div class="w-10"></div>
             </header>
 
@@ -152,7 +146,7 @@
                 <div id="welcome-screen" class="h-full flex flex-col items-center justify-center text-center">
                     <img src="https://t3.ftcdn.net/jpg/08/63/01/66/360_F_863016640_fdXeQ7Olm2XJv7BulETweOBaRlUg4lLL.jpg" class="w-24 h-24 rounded-[2.5rem] shadow-2xl mb-6 border border-white/10">
                     <h2 class="text-4xl font-black mb-2 transition-all duration-700">Hello, Ahmed!</h2>
-                    <p class="text-gray-400 text-sm">Secure, Fast, and Creative AI assistant.</p>
+                    <p class="text-gray-400 text-sm">Now with arcee-ai/trinity-large-preview:free</p>
                 </div>
             </div>
 
@@ -221,7 +215,7 @@
             if(!prompt) return;
 
             if(!apiKey && !/image|generate/i.test(prompt)) {
-                alert("Pehle Sidebar se API Key set karein!");
+                alert("Please set your API key in the sidebar first!");
                 toggleSettings();
                 return;
             }
@@ -240,7 +234,8 @@
                     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ model: "deepseek/deepseek-r1:free", messages: [{role: "user", content: prompt}], stream: true })
+                        // 🔁 Model changed to arcee-ai/trinity-large-preview:free as requested
+                        body: JSON.stringify({ model: "arcee-ai/trinity-large-preview:free", messages: [{role: "user", content: prompt}], stream: true })
                     });
                     const reader = res.body.getReader();
                     const decoder = new TextDecoder();
@@ -260,7 +255,7 @@
                             }
                         }
                     }
-                } catch (e) { prose.innerHTML = "Check Connection/API Key."; }
+                } catch (e) { prose.innerHTML = "Check connection or API key."; }
                 finally { prose.classList.remove('cursor-blink'); }
             }
         }
