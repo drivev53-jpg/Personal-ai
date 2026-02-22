@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>Fox Chat · universal (merged)</title>
+    <title>Fox Chat · custom model + dual image</title>
     
     <!-- Tailwind + Marked + Font Awesome + Highlight.js -->
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
@@ -14,203 +14,127 @@
 
     <style>
         :root { --fox-glow: #f97316; }
-        /* base light mode (will be overridden by dark class) */
         body { margin: 0; font-family: 'Inter', sans-serif; background: #f9fafb; color: #111827; overflow: hidden; }
         .dark body { background: #0a0a0b; color: white; }
 
-        /* --- BACKGROUND IMAGE WITH BLUR & DARK LAYER (only in dark mode) --- */
         .bg-glow {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -1;
-            overflow: hidden;
-            display: none; /* hidden in light mode */
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; overflow: hidden; display: none;
         }
-        .dark .bg-glow {
-            display: block;
-        }
+        .dark .bg-glow { display: block; }
         .bg-glow::before {
-            content: '';
-            position: absolute;
-            top: -10px;
-            left: -10px;
-            right: -10px;
-            bottom: -10px;
+            content: ''; position: absolute; top: -10px; left: -10px; right: -10px; bottom: -10px;
             background-image: url('https://ahmed4real.neocities.org/ef15b4fb871dc3eb569f69d76fead0d5.jpg');
-            background-size: cover;
-            background-position: center;
-            filter: blur(12px);
-            z-index: 1;
+            background-size: cover; background-position: center; filter: blur(12px); z-index: 1;
         }
         .bg-glow::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.65);
-            z-index: 2;
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.65); z-index: 2;
         }
         .glow-orb {
-            position: absolute;
-            width: 400px;
-            height: 400px;
-            border-radius: 50%;
-            background: var(--fox-glow);
-            opacity: 0.1;
-            filter: blur(100px);
-            animation: move 25s infinite alternate ease-in-out;
-            z-index: 3;
+            position: absolute; width: 400px; height: 400px; border-radius: 50%; background: var(--fox-glow);
+            opacity: 0.1; filter: blur(100px); animation: move 25s infinite alternate ease-in-out; z-index: 3;
         }
-        @keyframes move { 
-            0% { transform: translate(-20%, -20%); } 
-            100% { transform: translate(120%, 120%); } 
-        }
+        @keyframes move { 0% { transform: translate(-20%, -20%); } 100% { transform: translate(120%, 120%); } }
 
-        /* liquid glass (dark mode version) */
         .liquid-glass {
-            background: rgba(20, 20, 22, 0.4);
-            backdrop-filter: blur(20px) saturate(180%);
-            -webkit-backdrop-filter: blur(20px) saturate(180%);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+            background: rgba(20, 20, 22, 0.4); backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
         }
-        .dark .liquid-glass {
-            background: rgba(20, 20, 22, 0.4);
-            border-color: rgba(255,255,255,0.08);
-        }
-        /* light mode variant for sidebar etc */
-        .light-glass {
-            background: rgba(255, 255, 255, 0.7);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(0,0,0,0.05);
-            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-        }
-        .dark .light-glass { display: none; } /* not used in dark */
+        .message-user { background: #e5e7eb; color: #1f2937; border-radius: 1.5rem 1.5rem 0 1.5rem; }
+        .dark .message-user { background: rgba(249,115,22,0.2); color: white; }
+        .message-ai { background: #f3f4f6; color: #1f2937; border-radius: 1.5rem 1.5rem 1.5rem 0; }
+        .dark .message-ai { background: #2d3748; color: #e5e7eb; }
 
         #sidebar { transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); z-index: 100; }
         .sidebar-hidden { transform: translateX(-100%); opacity: 0; visibility: hidden; }
 
-        /* settings modal */
         #settings-modal { transition: all 0.3s ease-in-out; z-index: 200; }
         .modal-hide { opacity: 0; pointer-events: none; transform: scale(0.95); }
 
-        /* context menu */
+        /* Toast notification */
+        #toast {
+            position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%);
+            background: #1e1e24; color: white; padding: 0.75rem 1.5rem; border-radius: 2rem;
+            font-size: 0.9rem; box-shadow: 0 8px 20px rgba(0,0,0,0.5); z-index: 1000;
+            transition: opacity 0.3s; opacity: 0; pointer-events: none;
+            border: 1px solid #f9731633; backdrop-filter: blur(10px);
+        }
+        .toast-show { opacity: 1 !important; }
+
         .context-menu {
-            position: absolute;
-            background: #1e1e24;
-            border: 1px solid #f9731633;
-            border-radius: 1rem;
-            padding: 0.5rem;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            z-index: 300;
-            display: flex;
-            gap: 0.5rem;
-            backdrop-filter: blur(10px);
+            position: absolute; background: #1e1e24; border: 1px solid #f9731633; border-radius: 1rem;
+            padding: 0.5rem; box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 300;
+            display: flex; gap: 0.5rem; backdrop-filter: blur(10px);
         }
         .context-menu button {
-            background: transparent;
-            border: none;
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 2rem;
-            font-size: 0.8rem;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            gap: 0.3rem;
-            cursor: pointer;
-            transition: 0.2s;
+            background: transparent; border: none; color: white; padding: 0.5rem 1rem;
+            border-radius: 2rem; font-size: 0.8rem; font-weight: bold; display: flex;
+            align-items: center; gap: 0.3rem; cursor: pointer; transition: 0.2s;
         }
-        .context-menu button:hover {
-            background: #f9731622;
-            color: #f97316;
-        }
+        .context-menu button:hover { background: #f9731622; color: #f97316; }
 
         .message-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 0.5rem;
-            margin-top: 0.25rem;
-            opacity: 0.5;
-            transition: opacity 0.2s;
+            display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.25rem;
+            opacity: 0.5; transition: opacity 0.2s;
         }
-        .assistant-message:hover .message-actions {
-            opacity: 1;
-        }
+        .assistant-message:hover .message-actions { opacity: 1; }
         .message-actions button {
-            background: rgba(255,255,255,0.05);
-            border: none;
-            color: #ccc;
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: 0.2s;
-            font-size: 0.8rem;
+            background: rgba(255,255,255,0.05); border: none; color: #ccc; width: 28px; height: 28px;
+            border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: 0.2s; font-size: 0.8rem;
         }
-        .message-actions button:hover {
-            background: #f97316;
-            color: black;
-        }
+        .message-actions button:hover { background: #f97316; color: black; }
 
         .cursor-blink::after { content: '▋'; animation: blink 1s step-end infinite; color: var(--fox-glow); }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
 
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: rgba(249, 115, 22, 0.4); border-radius: 10px; }
 
-        /* loading */
         #loading { position: fixed; inset: 0; background: #0a0a0b; color: white; z-index: 9999; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
-        .dark #loading { background: #0a0a0b; }
-
-        /* mobile sidebar */
-        .sidebar-overlay {
-            position: fixed; inset:0; background: rgba(0,0,0,0.5); z-index: 90; display: none;
-        }
+        .sidebar-overlay { position: fixed; inset:0; background: rgba(0,0,0,0.5); z-index: 90; display: none; }
         .sidebar-overlay.open { display: block; }
-        @media (min-width: 768px) {
-            .sidebar-overlay { display: none !important; }
-        }
+        @media (min-width: 768px) { .sidebar-overlay { display: none !important; } }
 
-        /* user message bubble in light mode */
-        .dark .message-user { background: rgba(249,115,22,0.2); color: white; }
-        .message-user { background: #e5e7eb; color: #1f2937; border-radius: 1.5rem 1.5rem 0 1.5rem; }
-        .message-ai { background: #f3f4f6; color: #1f2937; border-radius: 1.5rem 1.5rem 1.5rem 0; }
-        .dark .message-ai { background: #2d3748; color: #e5e7eb; }
+        .image-preview { max-height: 100px; max-width: 100px; border-radius: 0.75rem; object-fit: cover; border: 2px solid #f97316; }
     </style>
 </head>
 <body class="h-[100dvh] flex flex-col dark">
-    <div id="loading">Loading Fox Chat...</div>
+    <div id="loading">Loading Fox Chat Pro...</div>
+    <div id="toast">✨ Copied to clipboard</div>
 
-    <!-- background orbs (only visible in dark) -->
     <div class="bg-glow">
         <div class="glow-orb" style="top: 10%; left: 10%;"></div>
         <div class="glow-orb" style="bottom: 10%; right: 10%; background: #ef4444;"></div>
     </div>
 
-    <!-- Settings Modal (API key + model) -->
+    <!-- Settings Modal (API key + model + image engine) -->
     <div id="settings-modal" class="fixed inset-0 flex items-center justify-center p-4 modal-hide">
         <div class="absolute inset-0 bg-black/80 backdrop-blur-md" onclick="toggleSettings()"></div>
-        <div class="liquid-glass w-full max-w-sm p-8 rounded-[2rem] relative z-10 border-orange-500/20">
+        <div class="liquid-glass w-full max-w-md p-8 rounded-[2rem] relative z-10 border-orange-500/20">
             <h3 class="text-xl font-black mb-2 text-orange-500 uppercase">API Settings</h3>
-            <p class="text-gray-400 text-xs mb-4">OpenRouter key & model (saved)</p>
+            <p class="text-gray-400 text-xs mb-4">OpenRouter key & model preferences</p>
+            
             <input type="password" id="api-key-input" class="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm outline-none focus:border-orange-500 mb-4" placeholder="sk-or-v1-...">
             
-            <label class="text-gray-400 text-xs block mb-1">Model</label>
-            <select id="model-select" class="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm outline-none focus:border-orange-500 mb-6">
-                <option value="arcee-ai/trinity-large-preview:free">Trinity Large (free)</option>
-                <option value="google/gemini-2.0-flash-exp:free">Gemini Flash (free)</option>
-                <option value="deepseek/deepseek-r1:free">DeepSeek R1 (free)</option>
-                <option value="mistralai/mistral-7b-instruct:free">Mistral 7B (free)</option>
-                <option value="meta-llama/llama-3.2-3b-instruct:free">Llama 3.2 (free)</option>
+            <label class="text-gray-400 text-xs block mb-1">Preset Model</label>
+            <select id="model-select" class="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm outline-none focus:border-orange-500 mb-3">
+                <option value="google/gemini-2.0-flash-exp:free">Gemini Flash (vision free)</option>
+                <option value="arcee-ai/trinity-large-preview:free">Trinity Large (text)</option>
+                <option value="deepseek/deepseek-r1:free">DeepSeek R1 (text)</option>
+                <option value="mistralai/mistral-7b-instruct:free">Mistral 7B</option>
+                <option value="meta-llama/llama-3.2-3b-instruct:free">Llama 3.2</option>
+                <option value="openai/gpt-4o-mini-2024-07-18">GPT-4o mini (vision, may need credits)</option>
+                <option value="custom">—— Custom ——</option>
+            </select>
+
+            <label class="text-gray-400 text-xs block mb-1">Custom Model (if selected above)</label>
+            <input type="text" id="custom-model-input" class="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm outline-none focus:border-orange-500 mb-4" placeholder="e.g. google/gemini-2.0-flash-exp:free">
+
+            <label class="text-gray-400 text-xs block mb-1">Image Generation Engine</label>
+            <select id="image-engine-select" class="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm outline-none focus:border-orange-500 mb-6">
+                <option value="pollinations">Pollinations (free, no key)</option>
+                <option value="openrouter">OpenRouter (uses your API key, may cost credits)</option>
             </select>
 
             <div class="flex gap-2">
@@ -236,7 +160,7 @@
     <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar(false)"></div>
 
     <div class="flex h-full w-full relative">
-        <!-- SIDEBAR (multi-chat) -->
+        <!-- SIDEBAR -->
         <aside id="sidebar" class="w-72 h-full liquid-glass absolute md:relative sidebar-hidden md:translate-x-0 md:opacity-100 md:visible flex flex-col p-6">
             <div class="flex items-center justify-between mb-8">
                 <div class="flex items-center gap-3">
@@ -250,7 +174,6 @@
                 <i class="fa-solid fa-plus"></i> New Chat
             </button>
 
-            <!-- Chat history list -->
             <div class="flex-1 overflow-y-auto space-y-1" id="chat-list"></div>
 
             <div class="pt-6 border-t border-white/10 mt-auto space-y-2">
@@ -275,64 +198,86 @@
             </div>
         </aside>
 
-        <!-- MAIN CHAT AREA -->
+        <!-- MAIN CHAT -->
         <main class="flex-1 flex flex-col h-full relative min-w-0">
             <header class="p-4 flex items-center justify-between z-50">
                 <button onclick="toggleSidebar(true)" class="p-3 bg-white/5 rounded-xl border border-white/10"><i class="fa-solid fa-bars-staggered text-orange-500"></i></button>
-                <div class="text-[10px] font-black text-gray-500 tracking-[0.2em] uppercase" id="header-model">Trinity Large</div>
+                <div class="text-[10px] font-black text-gray-500 tracking-[0.2em] uppercase" id="header-model">Gemini Flash</div>
                 <div class="w-10"></div>
             </header>
 
             <div id="chat-container" class="flex-1 overflow-y-auto px-4 md:px-32 py-6 space-y-8 scroll-smooth"></div>
 
+            <!-- INPUT with image attach -->
             <div class="p-4 md:px-32 pb-10">
-                <div class="max-w-4xl mx-auto liquid-glass p-2 rounded-[2rem] flex items-end gap-2">
-                    <textarea id="chat-input" rows="1" class="flex-1 bg-transparent p-4 outline-none resize-none text-sm text-white placeholder:text-gray-600" placeholder="Type a message or 'Generate image of...'"></textarea>
-                    <button id="btn-send" class="w-14 h-14 bg-orange-500 text-white rounded-[1.5rem] flex items-center justify-center hover:scale-105 active:scale-95 transition-all">
-                        <i class="fa-solid fa-paper-plane text-xl text-black"></i>
-                    </button>
+                <div class="max-w-4xl mx-auto liquid-glass p-2 rounded-[2rem] flex flex-col">
+                    <div id="imagePreviewContainer" class="px-4 pt-2 hidden">
+                        <div class="flex items-center gap-2">
+                            <img id="imagePreview" class="image-preview" src="#" alt="preview">
+                            <button onclick="clearSelectedImage()" class="text-red-400 hover:text-red-500"><i class="fa-regular fa-circle-xmark text-xl"></i></button>
+                        </div>
+                    </div>
+                    <div class="flex items-end gap-2">
+                        <button id="attachBtn" class="p-3 text-orange-500 hover:bg-white/5 rounded-full transition-all">
+                            <i class="fa-regular fa-image text-2xl"></i>
+                        </button>
+                        <textarea id="chat-input" rows="1" class="flex-1 bg-transparent p-4 outline-none resize-none text-sm text-white placeholder:text-gray-600" placeholder="Type a message or attach an image..."></textarea>
+                        <button id="btn-send" class="w-14 h-14 bg-orange-500 text-white rounded-[1.5rem] flex items-center justify-center hover:scale-105 active:scale-95 transition-all">
+                            <i class="fa-solid fa-paper-plane text-xl text-black"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </main>
     </div>
 
-    <!-- context menu for user messages -->
+    <!-- context menu -->
     <div id="user-context-menu" class="context-menu hidden">
         <button id="copy-user-msg"><i class="fa-regular fa-copy"></i> Copy</button>
         <button id="edit-user-msg"><i class="fa-regular fa-pen-to-square"></i> Edit</button>
     </div>
 
+    <!-- hidden file input -->
+    <input type="file" id="imageUpload" accept="image/*" class="hidden">
+
     <script>
         (function() {
-            // ---------- STATE (multi-chat) ----------
+            // ---------- STATE ----------
             let chats = [];
             let currentChatId = null;
             let apiKey = localStorage.getItem('FOX_KEY_STORAGE') || '';
-            let selectedModel = localStorage.getItem('FOX_MODEL_STORAGE') || 'arcee-ai/trinity-large-preview:free';
-            let darkMode = localStorage.getItem('darkMode') !== 'false'; // default true
+            let selectedModel = localStorage.getItem('FOX_MODEL_STORAGE') || 'google/gemini-2.0-flash-exp:free';
+            let customModel = localStorage.getItem('FOX_CUSTOM_MODEL') || '';
+            let imageEngine = localStorage.getItem('FOX_IMAGE_ENGINE') || 'pollinations'; // pollinations / openrouter
+            let darkMode = localStorage.getItem('darkMode') !== 'false';
+            let selectedImage = null; // base64
 
-            // DOM elements
+            // DOM
             const chatContainer = document.getElementById('chat-container');
             const inputField = document.getElementById('chat-input');
             const sendBtn = document.getElementById('btn-send');
             const settingsModal = document.getElementById('settings-modal');
             const apiKeyInput = document.getElementById('api-key-input');
             const modelSelect = document.getElementById('model-select');
+            const customModelInput = document.getElementById('custom-model-input');
+            const imageEngineSelect = document.getElementById('image-engine-select');
             const contextMenu = document.getElementById('user-context-menu');
             const headerModel = document.getElementById('header-model');
             const chatListEl = document.getElementById('chat-list');
             const systemModal = document.getElementById('systemPromptModal');
             const systemInput = document.getElementById('systemPromptInput');
             const loading = document.getElementById('loading');
-            const app = document.body; // app is body
+            const attachBtn = document.getElementById('attachBtn');
+            const imageUpload = document.getElementById('imageUpload');
+            const imagePreview = document.getElementById('imagePreview');
+            const previewContainer = document.getElementById('imagePreviewContainer');
+            const toast = document.getElementById('toast');
 
-            // Load from localStorage
+            // Load chats
             function loadChats() {
-                const saved = localStorage.getItem('fox_chats');
+                const saved = localStorage.getItem('fox_chats_dual');
                 if (saved) {
-                    try {
-                        chats = JSON.parse(saved);
-                    } catch (e) { chats = []; }
+                    try { chats = JSON.parse(saved); } catch (e) { chats = []; }
                 }
                 if (!chats || !chats.length) {
                     chats = [{ id: Date.now().toString(), name: 'New chat', messages: [], systemPrompt: '' }];
@@ -343,54 +288,45 @@
             }
             loadChats();
 
-            // apply dark mode
+            // Dark mode
             function applyDarkMode() {
-                if (darkMode) {
-                    document.documentElement.classList.add('dark');
-                } else {
-                    document.documentElement.classList.remove('dark');
-                }
+                if (darkMode) document.documentElement.classList.add('dark');
+                else document.documentElement.classList.remove('dark');
                 localStorage.setItem('darkMode', darkMode);
             }
             applyDarkMode();
 
-            // Save chats
             function saveChats() {
-                localStorage.setItem('fox_chats', JSON.stringify(chats));
+                localStorage.setItem('fox_chats_dual', JSON.stringify(chats));
             }
 
-            // Current chat helper
             function currentChat() {
                 return chats.find(c => c.id === currentChatId) || chats[0];
             }
 
-            // Update header model
+            // Determine effective model (custom if set and custom selected, else dropdown)
+            function getEffectiveModel() {
+                if (modelSelect.value === 'custom' && customModel.trim()) {
+                    return customModel.trim();
+                }
+                return modelSelect.value;
+            }
+
             function updateHeaderModel() {
-                let displayName = selectedModel.split('/').pop().replace(':free', '').replace(/-/g, ' ');
-                headerModel.textContent = displayName.slice(0, 20);
-            }
-            modelSelect.value = selectedModel;
-            updateHeaderModel();
-
-            // Render chat list
-            function renderChatList() {
-                if (!chatListEl) return;
-                chatListEl.innerHTML = '';
-                chats.forEach(chat => {
-                    const div = document.createElement('div');
-                    div.className = `flex items-center justify-between p-3 rounded-2xl cursor-pointer transition ${chat.id === currentChatId ? 'bg-orange-500/20 border border-orange-500/30' : 'bg-white/5 hover:bg-white/10'}`;
-                    div.innerHTML = `
-                        <div class="flex-1 truncate text-sm text-white" onclick="selectChat('${chat.id}')">${chat.name || 'Chat'}</div>
-                        <div class="flex gap-1">
-                            <button onclick="renameChat('${chat.id}')" class="p-1 text-gray-400 hover:text-orange-500"><i class="fa-regular fa-pen-to-square text-xs"></i></button>
-                            <button onclick="deleteChat('${chat.id}')" class="p-1 text-gray-400 hover:text-red-500"><i class="fa-regular fa-trash-can text-xs"></i></button>
-                        </div>
-                    `;
-                    chatListEl.appendChild(div);
-                });
+                let model = getEffectiveModel();
+                let displayName = model.split('/').pop().replace(':free', '').replace(/-/g, ' ');
+                headerModel.textContent = displayName.slice(0, 20) + (modelSelect.value === 'custom' ? ' (custom)' : '');
             }
 
-   // Render messages of current chat
+            // Initialize settings fields
+            modelSelect.value = selectedModel && selectedModel !== 'custom' ? selectedModel : 'google/gemini-2.0-flash-exp:free';
+            if (selectedModel === 'custom' || customModel) {
+                modelSelect.value = 'custom';
+                customModelInput.value = customModel;
+            }
+            imageEngineSelect.value = imageEngine;
+
+                     // Render messages
             function renderChat() {
                 const chat = currentChat();
                 const messages = chat.messages || [];
@@ -400,7 +336,7 @@
                         <div class="h-full flex flex-col items-center justify-center text-center">
                             <img src="https://t3.ftcdn.net/jpg/08/63/01/66/360_F_863016640_fdXeQ7Olm2XJv7BulETweOBaRlUg4lLL.jpg" class="w-24 h-24 rounded-[2.5rem] shadow-2xl mb-6 border border-white/10">
                             <h2 class="text-4xl font-black mb-2 transition-all duration-700 text-white">Hello, Ahmed!</h2>
-                            <p class="text-gray-400 text-sm">Messages are saved · Long-press to edit</p>
+                            <p class="text-gray-400 text-sm">Attach image, choose image engine, ask away</p>
                         </div>
                     `;
                     return;
@@ -412,16 +348,24 @@
                     msgDiv.dataset.index = idx;
 
                     if (msg.role === 'user') {
+                        let contentHtml = '';
+                        if (msg.image) {
+                            contentHtml = `<img src="${msg.image}" class="max-w-[200px] max-h-[200px] rounded-2xl mb-2 border border-orange-500/30">`;
+                        }
+                        contentHtml += `<div>${marked.parse(msg.text || msg.content || '')}</div>`;
                         msgDiv.innerHTML = `
-                            <div class="px-6 py-3 rounded-[2rem] rounded-tr-none max-w-[85%] text-sm message-user user-message" data-index="${idx}">${marked.parse(msg.content)}</div>
+                            <div class="px-6 py-3 rounded-[2rem] rounded-tr-none max-w-[85%] text-sm message-user user-message" data-index="${idx}">${contentHtml}</div>
                         `;
                         const bubble = msgDiv.querySelector('.user-message');
-                        bubble.addEventListener('contextmenu', (e) => showContextMenu(e, idx, msg.content));
+                        bubble.addEventListener('contextmenu', (e) => showContextMenu(e, idx, msg.text || msg.content));
                     } else {
                         const isImg = msg.isImg || false;
-                        const contentHtml = isImg 
-                            ? `<img src="${msg.content}" class="rounded-3xl max-w-sm w-full liquid-glass p-2 shadow-2xl">`
-                            : `<div class="prose prose-invert prose-orange text-sm message-ai-content">${marked.parse(msg.content)}</div>`;
+                        let contentHtml = '';
+                        if (isImg) {
+                            contentHtml = `<img src="${msg.content}" class="rounded-3xl max-w-sm w-full liquid-glass p-2 shadow-2xl">`;
+                        } else {
+                            contentHtml = `<div class="prose prose-invert prose-orange text-sm message-ai-content">${marked.parse(msg.content)}</div>`;
+                        }
                         msgDiv.innerHTML = `
                             <div class="flex gap-4 w-full assistant-message">
                                 <img src="https://t3.ftcdn.net/jpg/08/63/01/66/360_F_863016640_fdXeQ7Olm2XJv7BulETweOBaRlUg4lLL.jpg" class="w-10 h-10 rounded-2xl border border-white/10 flex-shrink-0">
@@ -442,18 +386,44 @@
                     }
                     chatContainer.appendChild(msgDiv);
                 });
-                // Highlight code
                 document.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
                 chatContainer.scrollTop = chatContainer.scrollHeight;
             }
 
-            // Combined render
             function renderAll() {
                 renderChatList();
                 renderChat();
+                updateHeaderModel();
             }
 
-            // ---------- CHAT MANAGEMENT ----------
+            // Toast
+            function showToast(message) {
+                toast.textContent = message || '✨ Copied to clipboard';
+                toast.classList.add('toast-show');
+                setTimeout(() => toast.classList.remove('toast-show'), 3000);
+            }
+
+            // Image handling
+            attachBtn.addEventListener('click', () => imageUpload.click());
+            imageUpload.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    selectedImage = event.target.result;
+                    imagePreview.src = selectedImage;
+                    previewContainer.classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            });
+
+            window.clearSelectedImage = () => {
+                selectedImage = null;
+                previewContainer.classList.add('hidden');
+                imageUpload.value = '';
+            };
+
+                     // Chat management
             window.selectChat = (id) => {
                 currentChatId = id;
                 renderAll();
@@ -489,7 +459,7 @@
                 }
             };
 
-            // ---------- SYSTEM PROMPT ----------
+            // System prompt
             window.openSystemPromptModal = () => {
                 systemInput.value = currentChat().systemPrompt || '';
                 systemModal.classList.remove('hidden');
@@ -502,18 +472,33 @@
                 closeSystemPromptModal();
             };
 
-            // ---------- SETTINGS ----------
+            // Settings
             window.saveSettings = () => {
                 const newKey = apiKeyInput.value.trim();
                 if (newKey) {
                     apiKey = newKey;
                     localStorage.setItem('FOX_KEY_STORAGE', newKey);
                 }
-                const newModel = modelSelect.value;
-                selectedModel = newModel;
+                let newModel = modelSelect.value;
+                if (newModel === 'custom') {
+                    const custom = customModelInput.value.trim();
+                    if (custom) {
+                        localStorage.setItem('FOX_CUSTOM_MODEL', custom);
+                        customModel = custom;
+                    } else {
+                        alert('Please enter a custom model name or select a preset.');
+                        return;
+                    }
+                } else {
+                    localStorage.setItem('FOX_CUSTOM_MODEL', '');
+                    customModel = '';
+                }
                 localStorage.setItem('FOX_MODEL_STORAGE', newModel);
+                selectedModel = newModel;
+                imageEngine = imageEngineSelect.value;
+                localStorage.setItem('FOX_IMAGE_ENGINE', imageEngine);
                 updateHeaderModel();
-                alert('Settings saved!');
+                showToast('Settings saved');
                 toggleSettings();
             };
             window.toggleSettings = () => {
@@ -521,6 +506,8 @@
                 if (!settingsModal.classList.contains('modal-hide')) {
                     apiKeyInput.value = apiKey;
                     modelSelect.value = selectedModel;
+                    customModelInput.value = customModel;
+                    imageEngineSelect.value = imageEngine;
                 }
             };
             window.toggleSidebar = (open) => {
@@ -534,15 +521,12 @@
                     overlay.classList.remove('open');
                 }
             };
-
-            // ---------- DARK MODE ----------
             window.toggleDarkMode = () => {
                 darkMode = !darkMode;
                 applyDarkMode();
-                // re-render to adjust colors? not needed because CSS handles
             };
-
-            // ---------- CONTEXT MENU (same as before) ----------
+            
+            // Context menu functions
             function showContextMenu(e, idx, content) {
                 e.preventDefault();
                 contextMenu.classList.remove('hidden');
@@ -566,7 +550,7 @@
 
             function copyText(text, isImage) {
                 navigator.clipboard.writeText(text).then(() => {
-                    alert(isImage ? 'Image URL copied!' : 'Message copied!');
+                    showToast(isImage ? 'Image URL copied' : 'Message copied');
                 });
             }
             function shareContent(content, isImg) {
@@ -580,10 +564,12 @@
                 if (newContent && newContent.trim() !== '') {
                     const chat = currentChat();
                     chat.messages = chat.messages.slice(0, idx + 1);
-                    chat.messages[idx].content = newContent.trim();
+                    chat.messages[idx].text = newContent.trim();
+                    if (!chat.messages[idx].text) chat.messages[idx].text = '';
+                    delete chat.messages[idx].content;
                     saveChats();
                     renderChat();
-                    sendMessage(newContent.trim());
+                    sendMessage(newContent.trim(), chat.messages[idx].image || null);
                 }
             }
 
@@ -597,38 +583,100 @@
                     }
                 }
                 if (userIdx === -1) return;
+                const userMsg = chat.messages[userIdx];
                 chat.messages = chat.messages.slice(0, userIdx + 1);
                 saveChats();
                 renderChat();
-                sendMessage(chat.messages[userIdx].content);
+                sendMessage(userMsg.text || userMsg.content || '', userMsg.image || null);
             }
 
-            // ---------- SEND MESSAGE (streaming) ----------
-            async function sendMessage(prompt) {
-                if (!prompt) return;
-                if (!apiKey && !/image|generate/i.test(prompt)) {
-                    alert('Please set your OpenRouter API key in settings first.');
+            // Image generation using selected engine
+            async function generateImage(prompt) {
+                if (imageEngine === 'pollinations') {
+                    return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${Math.random()}&nologo=true`;
+                } else {
+                    // OpenRouter image generation
+                    if (!apiKey) {
+                        alert('OpenRouter API key required for image generation');
+                        return null;
+                    }
+                    try {
+                        const response = await fetch('https://openrouter.ai/api/v1/images/generations', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${apiKey}`,
+                                'Content-Type': 'application/json',
+                                'HTTP-Referer': window.location.origin,
+                            },
+                            body: JSON.stringify({
+                                model: 'black-forest-labs/flux-1.1-pro', // or any image model
+                                prompt: prompt,
+                                n: 1,
+                                size: '1024x1024'
+                            })
+                        });
+                        if (!response.ok) throw new Error('Image generation failed');
+                        const data = await response.json();
+                        return data.data?.[0]?.url; // adjust based on actual response
+                    } catch (e) {
+                        console.error(e);
+                        alert('OpenRouter image generation failed: ' + e.message);
+                        return null;
+                    }
+                }
+            }
+
+                     // Send message with optional image
+            async function sendMessage(prompt, imageData = null) {
+                if (!prompt && !imageData) return;
+                if (!apiKey && !(imageEngine === 'pollinations' && /image|generate/i.test(prompt))) {
+                    alert('Please set your OpenRouter API key in settings.');
                     toggleSettings();
                     return;
                 }
 
                 const chat = currentChat();
-                const lastMsg = chat.messages.length > 0 ? chat.messages[chat.messages.length - 1] : null;
-                if (!lastMsg || lastMsg.role !== 'user' || lastMsg.content !== prompt) {
-                    chat.messages.push({ role: 'user', content: prompt, isImg: false });
-                    saveChats();
-                    renderChat();
-                }
+                const userMsg = { role: 'user', text: prompt || '', image: imageData || selectedImage };
+                chat.messages.push(userMsg);
+                saveChats();
+                renderChat();
 
-                if (/image|generate/i.test(prompt)) {
-                    const imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${Math.random()}&nologo=true`;
-                    chat.messages.push({ role: 'assistant', content: imgUrl, isImg: true });
-                    saveChats();
-                    renderChat();
+                clearSelectedImage();
+
+                // Image generation (text-to-image) if prompt triggers it
+                if (!imageData && /image|generate/i.test(prompt)) {
+                    const imgUrl = await generateImage(prompt);
+                    if (imgUrl) {
+                        chat.messages.push({ role: 'assistant', content: imgUrl, isImg: true });
+                        saveChats();
+                        renderChat();
+                    } else {
+                        // if failed, maybe show error
+                        chat.messages.push({ role: 'assistant', content: '⚠️ Image generation failed.', isImg: false });
+                        saveChats();
+                        renderChat();
+                    }
                     return;
                 }
 
-                // assistant placeholder
+                // Text/vision chat completion
+                const apiMessages = [];
+                if (chat.systemPrompt) {
+                    apiMessages.push({ role: 'system', content: chat.systemPrompt });
+                }
+                if (imageData || selectedImage) {
+                    const img = imageData || selectedImage;
+                    apiMessages.push({
+                        role: 'user',
+                        content: [
+                            { type: 'text', text: prompt || 'What’s in this image?' },
+                            { type: 'image_url', image_url: { url: img } }
+                        ]
+                    });
+                } else {
+                    apiMessages.push({ role: 'user', content: prompt });
+                }
+
                 const assistantMsg = { role: 'assistant', content: '', isImg: false };
                 chat.messages.push(assistantMsg);
                 saveChats();
@@ -649,8 +697,8 @@
                             'HTTP-Referer': window.location.origin,
                         },
                         body: JSON.stringify({
-                            model: selectedModel,
-                            messages: chat.systemPrompt ? [{ role: 'system', content: chat.systemPrompt }, { role: 'user', content: prompt }] : [{ role: 'user', content: prompt }],
+                            model: getEffectiveModel(),
+                            messages: apiMessages,
                             stream: true
                         })
                     });
@@ -683,39 +731,34 @@
                 } finally {
                     proseDiv.classList.remove('cursor-blink');
                     saveChats();
-                    renderChat(); // final render for actions
+                    renderChat();
                 }
             }
-            // ---------- EVENT LISTENERS ----------
+
+            // Event listeners
             sendBtn.addEventListener('click', () => {
                 const prompt = inputField.value.trim();
-                if (prompt) {
-                    inputField.value = '';
-                    sendMessage(prompt);
-                }
+                inputField.value = '';
+                sendMessage(prompt, selectedImage);
             });
             inputField.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     const prompt = inputField.value.trim();
-                    if (prompt) {
-                        inputField.value = '';
-                        sendMessage(prompt);
-                    }
+                    inputField.value = '';
+                    sendMessage(prompt, selectedImage);
                 }
             });
             chatContainer.addEventListener('scroll', () => contextMenu.classList.add('hidden'));
 
-            // Loader hide
             loading.style.display = 'none';
-            // Initial render
             renderAll();
 
-            // expose functions globally for onclick
+            // Expose globals
             window.copyText = copyText;
             window.shareContent = shareContent;
             window.regenerateMessage = regenerateMessage;
-            window.editUserMessage = editUserMessage; // not directly used but ok
+            window.clearSelectedImage = clearSelectedImage;
         })();
     </script>
 </body>
